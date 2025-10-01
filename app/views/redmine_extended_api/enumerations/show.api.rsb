@@ -1,0 +1,55 @@
+unless defined?(safe_boolean)
+  def safe_boolean(record, *methods)
+    methods.each do |method|
+      next unless record.respond_to?(method) || record.respond_to?(method, true)
+
+      begin
+        return record.public_send(method) if record.respond_to?(method)
+        return record.send(method)
+      rescue NoMethodError
+        next
+      end
+    end
+
+    nil
+  end
+end
+
+api.extended_api do
+  metadata = extended_api_metadata
+  api.mode metadata[:mode]
+  api.fallback_to_native metadata[:fallback_to_native]
+end
+
+api.enumeration do
+  api.id @enumeration.id
+  api.name @enumeration.name
+  api.type @enumeration.type if @enumeration.respond_to?(:type)
+
+  active_value = safe_boolean(@enumeration, :active?, :active)
+  api.active active_value unless active_value.nil?
+
+  default_value = safe_boolean(@enumeration, :is_default?, :default?, :default, :is_default)
+  api.is_default default_value unless default_value.nil?
+
+  api.position @enumeration.position if @enumeration.respond_to?(:position)
+  api.parent_id @enumeration.parent_id if @enumeration.respond_to?(:parent_id)
+  api.project_id @enumeration.project_id if @enumeration.respond_to?(:project_id)
+
+  if @enumeration.respond_to?(:custom_field_values)
+    values = @enumeration.custom_field_values
+    if values.respond_to?(:any?) && values.any?
+      api.array :custom_fields do
+        values.each do |value|
+          next unless value.respond_to?(:custom_field)
+
+          api.custom_field_value do
+            api.id value.custom_field_id if value.respond_to?(:custom_field_id)
+            api.name value.custom_field.name if value.custom_field.respond_to?(:name)
+            api.value value.value if value.respond_to?(:value)
+          end
+        end
+      end
+    end
+  end
+end

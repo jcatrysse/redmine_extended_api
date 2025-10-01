@@ -1,0 +1,37 @@
+unless defined?(safe_boolean)
+  def safe_boolean(record, *methods)
+    methods.each do |method|
+      next unless record.respond_to?(method) || record.respond_to?(method, true)
+
+      begin
+        return record.public_send(method) if record.respond_to?(method)
+        return record.send(method)
+      rescue NoMethodError
+        next
+      end
+    end
+
+    nil
+  end
+end
+
+api.extended_api do
+  metadata = extended_api_metadata
+  api.mode metadata[:mode]
+  api.fallback_to_native metadata[:fallback_to_native]
+end
+
+api.issue_status do
+  api.id @issue_status.id
+  api.name @issue_status.name
+  api.description @issue_status.description
+
+  closed_value = safe_boolean(@issue_status, :is_closed?, :closed?, :is_closed)
+  api.is_closed closed_value unless closed_value.nil?
+
+  default_value = safe_boolean(@issue_status, :is_default?, :default?, :is_default)
+  api.is_default default_value unless default_value.nil?
+
+  api.position @issue_status.position if @issue_status.respond_to?(:position)
+  api.default_done_ratio @issue_status.default_done_ratio if @issue_status.respond_to?(:default_done_ratio)
+end
