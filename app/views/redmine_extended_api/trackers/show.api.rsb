@@ -1,0 +1,41 @@
+api.extended_api do
+  metadata = extended_api_metadata
+  api.mode metadata[:mode]
+  api.fallback_to_native metadata[:fallback_to_native]
+end
+
+api.tracker do
+  api.id @tracker.id
+  api.name @tracker.name
+  api.description @tracker.description
+  api.position @tracker.position
+  api.is_in_roadmap @tracker.is_in_roadmap?
+  if @tracker.default_status
+    api.default_status do
+      api.id @tracker.default_status.id
+      api.name @tracker.default_status.name
+    end
+  end
+  api.array :core_fields do
+    @tracker.core_fields.each do |field|
+      api.field field
+    end
+  end
+  api.array :custom_fields do
+    @tracker.custom_fields.each do |field|
+      api.custom_field do
+        api.id field.id
+        api.name field.name
+      end
+    end
+  end
+  api.array :projects do
+    @tracker.projects.each do |project|
+      api.project do
+        api.id project.id
+        api.name project.name
+        api.identifier project.identifier
+      end
+    end
+  end
+end

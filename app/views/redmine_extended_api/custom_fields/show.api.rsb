@@ -1,0 +1,196 @@
+api.extended_api do
+  metadata = extended_api_metadata
+  api.mode metadata[:mode]
+  api.fallback_to_native metadata[:fallback_to_native]
+end
+
+policy = RedmineExtendedApi::CustomFields::AttributePolicy.new(@custom_field)
+
+api.custom_field do
+  api.id @custom_field.id
+  api.name @custom_field.name
+  api.description @custom_field.description
+  api.type @custom_field.type
+  if policy.display_attribute?(:customized_type)
+    api.customized_type @custom_field.class.customized_class.name.underscore
+  end
+  api.field_format @custom_field.field_format
+  api.is_required policy.boolean_value(:is_required, @custom_field.is_required?)
+  if policy.display_attribute?(:is_for_all)
+    api.is_for_all policy.boolean_value(:is_for_all, @custom_field.is_for_all?)
+  end
+  if policy.display_attribute?(:is_filter)
+    value = if @custom_field.respond_to?(:is_filter?)
+              @custom_field.is_filter?
+            else
+              @custom_field.is_filter
+            end
+    api.is_filter policy.boolean_value(:is_filter, value)
+  end
+  if policy.display_attribute?(:searchable)
+    value = if @custom_field.respond_to?(:searchable?)
+              @custom_field.searchable?
+            else
+              @custom_field.searchable
+            end
+    api.searchable policy.boolean_value(:searchable, value)
+  end
+  if policy.display_attribute?(:multiple)
+    api.multiple policy.boolean_value(:multiple, @custom_field.multiple?)
+  end
+  if policy.display_attribute?(:visible)
+    api.visible policy.boolean_value(:visible, @custom_field.visible?)
+  end
+  if policy.display_attribute?(:editable)
+    api.editable policy.boolean_value(:editable, @custom_field.editable?)
+  end
+  api.position @custom_field.position
+  if policy.display_attribute?(:regexp) && @custom_field.regexp.present?
+    api.regexp @custom_field.regexp
+  end
+  if policy.display_attribute?(:min_length) && @custom_field.min_length.present?
+    api.min_length @custom_field.min_length
+  end
+  if policy.display_attribute?(:max_length) && @custom_field.max_length.present?
+    api.max_length @custom_field.max_length
+  end
+  if policy.display_attribute?(:text_formatting) && @custom_field.respond_to?(:text_formatting)
+    api.text_formatting @custom_field.text_formatting if @custom_field.text_formatting.present?
+  end
+  if policy.display_attribute?(:default_value) && !@custom_field.default_value.nil?
+    api.default_value @custom_field.default_value
+  end
+  if policy.display_attribute?(:full_width_layout)
+    api.full_width_layout policy.boolean_value(:full_width_layout, @custom_field.try(:full_width_layout))
+  end
+  if policy.display_attribute?(:url_pattern)
+    pattern = @custom_field.try(:url_pattern)
+    api.url_pattern pattern if pattern.present?
+  end
+  if policy.display_attribute?(:edit_tag_style)
+    edit_style = @custom_field.try(:edit_tag_style)
+    api.edit_tag_style edit_style if edit_style.present?
+  end
+  if policy.display_attribute?(:user_role)
+    user_role = @custom_field.try(:user_role)
+    api.user_role user_role if user_role.present?
+  end
+  if policy.display_attribute?(:version_status)
+    version_status = @custom_field.try(:version_status)
+    api.version_status version_status if version_status.present?
+  end
+  if policy.display_attribute?(:extensions_allowed)
+    extensions = @custom_field.try(:extensions_allowed)
+    api.extensions_allowed extensions if extensions.present?
+  end
+  if policy.display_attribute?(:thousands_delimiter)
+    thousands = @custom_field.try(:thousands_delimiter)
+    api.thousands_delimiter policy.boolean_value(:thousands_delimiter, thousands)
+  end
+  if policy.display_attribute?(:ratio_interval)
+    ratio = @custom_field.try(:ratio_interval)
+    api.ratio_interval ratio if ratio.present?
+  end
+
+  if policy.display_attribute?(:possible_values)
+    possible_values = @custom_field.possible_values_options
+    api.array :possible_values do
+      Array(possible_values).each do |label, value|
+        api.possible_value do
+          api.value(value || label)
+          api.label label
+        end
+      end
+    end
+  end
+
+  if policy.display_attribute?(:enumerations)
+    enumerations = @custom_field.respond_to?(:enumerations) ? @custom_field.enumerations : []
+    api.array :enumerations do
+      enumerations.each do |enumeration|
+        api.enumeration do
+          api.id enumeration.id
+          api.name enumeration.name
+          api.active enumeration.active?
+          api.position enumeration.position
+        end
+      end
+    end
+  end
+
+  if policy.display_attribute?(:roles)
+    roles = @custom_field.respond_to?(:roles) ? @custom_field.roles : []
+    api.array :roles do
+      roles.each do |role|
+        api.role do
+          api.id role.id
+          api.name role.name
+        end
+      end
+    end
+  end
+
+  if policy.display_attribute?(:trackers)
+    trackers = @custom_field.respond_to?(:trackers) ? @custom_field.trackers : []
+    api.array :trackers do
+      trackers.each do |tracker|
+        api.tracker do
+          api.id tracker.id
+          api.name tracker.name
+        end
+      end
+    end
+  end
+
+  if policy.display_attribute?(:projects)
+    projects = @custom_field.respond_to?(:projects) ? @custom_field.projects : []
+    api.array :projects do
+      projects.each do |project|
+        api.project do
+          api.id project.id
+          api.name project.name
+          api.identifier project.identifier if project.respond_to?(:identifier)
+        end
+      end
+    end
+  end
+
+  if policy.display_attribute?(:parent_custom_field_id)
+    api.parent_custom_field_id @custom_field.try(:parent_custom_field_id)
+  end
+
+  if policy.display_attribute?(:value_dependencies)
+    dependencies = @custom_field.try(:value_dependencies) || {}
+    api.value_dependencies dependencies
+  end
+
+  if policy.display_attribute?(:default_value_dependencies)
+    defaults = @custom_field.try(:default_value_dependencies) || {}
+    api.default_value_dependencies defaults
+  end
+
+  if policy.display_attribute?(:hide_when_disabled)
+    api.hide_when_disabled policy.boolean_value(:hide_when_disabled, @custom_field.try(:hide_when_disabled))
+  end
+
+  if policy.display_attribute?(:group_ids)
+    ids = Array(@custom_field.try(:group_ids)).reject(&:blank?).map(&:to_i)
+    api.group_ids ids
+  end
+
+  if policy.display_attribute?(:exclude_admins)
+    api.exclude_admins policy.boolean_value(:exclude_admins, @custom_field.try(:exclude_admins))
+  end
+
+  if policy.display_attribute?(:show_active)
+    api.show_active policy.boolean_value(:show_active, @custom_field.try(:show_active))
+  end
+
+  if policy.display_attribute?(:show_registered)
+    api.show_registered policy.boolean_value(:show_registered, @custom_field.try(:show_registered))
+  end
+
+  if policy.display_attribute?(:show_locked)
+    api.show_locked policy.boolean_value(:show_locked, @custom_field.try(:show_locked))
+  end
+end

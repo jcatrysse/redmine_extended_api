@@ -142,8 +142,78 @@ RSpec.describe RedmineExtendedApi::ProxyApp do
         allow(rails_app).to receive(:call).with(rewritten_env).and_return(response)
       end
 
-      it 'proxies the request to Rails' do
-        expect(proxy_app.call(env)).to eq(response)
+      it 'proxies the request to Rails and marks the response as native' do
+        status, headers, body = proxy_app.call(env)
+
+        expect(status).to eq(200)
+        expect(headers).to include('Content-Type' => 'application/json', 'X-Redmine-Extended-API' => 'native')
+        expect(body).to eq(['{}'])
+      end
+    end
+
+    context 'when requesting the roles show endpoint and the controller exposes accept_api_auth?' do
+      let(:env) { { 'PATH_INFO' => '/extended_api/roles/3.json' } }
+      let(:rewritten_env) { { 'PATH_INFO' => '/roles/3.json' } }
+      let(:request) { double('Request', path: '/roles/3.json', request_method: 'GET') }
+      let(:route_params) { { controller: 'roles', action: 'show', format: 'json', id: '3' } }
+      let(:response) { [200, { 'Content-Type' => 'application/json' }, ['{"role":{}}']] }
+
+      before do
+        roles_controller = Class.new do
+          class << self
+            def accept_api_auth?(action)
+              action.to_sym == :show
+            end
+          end
+        end
+
+        stub_const('RolesController', roles_controller)
+
+        allow(proxy_app).to receive(:rewrite_env).with(env).and_return(rewritten_env)
+        allow(proxy_app).to receive(:build_request).with(rewritten_env).and_return(request)
+        allow(routes).to receive(:recognize_path).with('/roles/3.json', method: 'GET').and_return(route_params)
+        allow(rails_app).to receive(:call).with(rewritten_env).and_return(response)
+      end
+
+      it 'proxies the request to Rails and marks the response as native' do
+        status, headers, body = proxy_app.call(env)
+
+        expect(status).to eq(200)
+        expect(headers).to include('Content-Type' => 'application/json', 'X-Redmine-Extended-API' => 'native')
+        expect(body).to eq(['{"role":{}}'])
+      end
+    end
+
+    context 'when requesting the roles show endpoint and the controller exposes accept_api_auth_actions' do
+      let(:env) { { 'PATH_INFO' => '/extended_api/roles/3.json' } }
+      let(:rewritten_env) { { 'PATH_INFO' => '/roles/3.json' } }
+      let(:request) { double('Request', path: '/roles/3.json', request_method: 'GET') }
+      let(:route_params) { { controller: 'roles', action: 'show', format: 'json', id: '3' } }
+      let(:response) { [200, { 'Content-Type' => 'application/json' }, ['{"role":{}}']] }
+
+      before do
+        roles_controller = Class.new do
+          class << self
+            def accept_api_auth_actions
+              [:show]
+            end
+          end
+        end
+
+        stub_const('RolesController', roles_controller)
+
+        allow(proxy_app).to receive(:rewrite_env).with(env).and_return(rewritten_env)
+        allow(proxy_app).to receive(:build_request).with(rewritten_env).and_return(request)
+        allow(routes).to receive(:recognize_path).with('/roles/3.json', method: 'GET').and_return(route_params)
+        allow(rails_app).to receive(:call).with(rewritten_env).and_return(response)
+      end
+
+      it 'proxies the request to Rails and marks the response as native' do
+        status, headers, body = proxy_app.call(env)
+
+        expect(status).to eq(200)
+        expect(headers).to include('Content-Type' => 'application/json', 'X-Redmine-Extended-API' => 'native')
+        expect(body).to eq(['{"role":{}}'])
       end
     end
 
@@ -167,8 +237,12 @@ RSpec.describe RedmineExtendedApi::ProxyApp do
         allow(rails_app).to receive(:call).with(rewritten_env).and_return(response)
       end
 
-      it 'proxies the request to Rails' do
-        expect(proxy_app.call(env)).to eq(response)
+      it 'proxies the request to Rails and marks the response as native' do
+        status, headers, body = proxy_app.call(env)
+
+        expect(status).to eq(200)
+        expect(headers).to include('Content-Type' => 'application/xml', 'X-Redmine-Extended-API' => 'native')
+        expect(body).to eq(['<issues/>'])
       end
     end
 
