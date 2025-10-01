@@ -1,0 +1,22 @@
+api.enumeration do
+  api.id @enumeration.id
+  api.name @enumeration.name
+  api.type @enumeration.type
+  api.active @enumeration.active?
+  api.is_default @enumeration.is_default?
+  api.position @enumeration.position
+  api.parent_id @enumeration.parent_id if @enumeration.respond_to?(:parent_id)
+  api.project_id @enumeration.project_id if @enumeration.respond_to?(:project_id)
+
+  if @enumeration.custom_field_values.any?
+    api.array :custom_fields do
+      @enumeration.custom_field_values.each do |value|
+        api.custom_field_value do
+          api.id value.custom_field_id
+          api.name value.custom_field.name
+          api.value value.value
+        end
+      end
+    end
+  end
+end

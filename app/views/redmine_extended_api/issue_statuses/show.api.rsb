@@ -1,0 +1,9 @@
+api.issue_status do
+  api.id @issue_status.id
+  api.name @issue_status.name
+  api.description @issue_status.description
+  api.is_closed @issue_status.is_closed?
+  api.is_default @issue_status.is_default?
+  api.position @issue_status.position
+  api.default_done_ratio @issue_status.default_done_ratio if @issue_status.respond_to?(:default_done_ratio)
+end

@@ -2,16 +2,16 @@
 
 **ATTENTION: ALPHA STAGE**
 
-This plugin extends the default Redmine API by providing a dedicated endpoint that mirrors the behaviour of the core Redmine REST API.
-The goal of this first iteration is to offer a safe playground for new capabilities (POST/PUT/DELETE and plugin-specific functionality) without interfering with the built-in endpoints.
+This plugin extends the default Redmine API by providing a dedicated endpoint that mirrors the behaviour of the core Redmine REST API and now enables write operations for administrative resources that were previously read-only.
 
 ## Features
 
 - Transparent proxy for all REST API calls that exist in Redmine.
 - New isolated base path (`/extended_api`) to avoid conflicts with the core API.
 - Works on both Redmine 5.x and 6.x installations.
+- Adds POST/PUT/PATCH/DELETE for issue statuses, trackers, enumerations, custom fields and roles (including depending custom field options when the plugin is installed).
 
-Future releases will start enabling write operations and expose endpoints for complementary plugins such as [`redmine_depending_custom_fields`](https://github.com/jcatrysse/redmine_depending_custom_fields) and [`redmine_stealth`](https://github.com/jcatrysse/redmine_stealth).
+Support for complementary plugins such as [`redmine_depending_custom_fields`](https://github.com/jcatrysse/redmine_depending_custom_fields) is automatically detected and exposed through the API.
 
 ## Installation
 
@@ -76,11 +76,15 @@ Below you will find the list of resources that expose API endpoints in Redmine 6
 | Add watchers to an issue     | POST      | `/issues/:issue_id/watchers.{format}`          | `/extended_api/issues/:issue_id/watchers.{format}`          | Provide `user_id`, `user_ids`, `watcher[user_id]`, or `watcher[user_ids]`. |
 | Remove watcher from an issue | DELETE    | `/issues/:issue_id/watchers/:user_id.{format}` | `/extended_api/issues/:issue_id/watchers/:user_id.{format}` | Removes a single watcher.                                                  |
 
-#### Journals
+#### Custom fields
 
-| Operation          | Method(s) | Core path                | Extended path                         | Notes                                               |
-|--------------------|-----------|--------------------------|---------------------------------------|-----------------------------------------------------|
-| Edit journal notes | PUT/PATCH | `/journals/:id.{format}` | `/extended_api/journals/:id.{format}` | Payload under `journal` (`notes`, `private_notes`). |
+| Operation          | Method(s) | Core path                    | Extended path                               | Notes                                                                                               |
+|--------------------|-----------|--------------------------------|---------------------------------------------|-----------------------------------------------------------------------------------------------------|
+| List custom fields | GET       | `/custom_fields.{format}`      | `/extended_api/custom_fields.{format}`      | Returns all custom fields, including available formats and trackers.                               |
+| Create custom field| POST      | `/custom_fields.{format}`      | `/extended_api/custom_fields.{format}`      | Provide `type` (e.g. `IssueCustomField`) and attributes under `custom_field` (format, visibility, roles, trackers, possible values, plugin options). |
+| Update custom field| PUT/PATCH | `/custom_fields/:id.{format}`  | `/extended_api/custom_fields/:id.{format}`  | Same attributes as create; supports depending custom field options when the plugin is installed.   |
+| Delete custom field| DELETE    | `/custom_fields/:id.{format}`  | `/extended_api/custom_fields/:id.{format}`  | Removes the custom field; fails if the field cannot be destroyed by Redmine.                       |
+
 
 #### Time entries
 
@@ -96,9 +100,13 @@ Below you will find the list of resources that expose API endpoints in Redmine 6
 
 #### Projects
 
-| Operation         | Method(s) | Core path                          | Extended path                                   | Notes                                                                                         |
-|-------------------|-----------|------------------------------------|-------------------------------------------------|-----------------------------------------------------------------------------------------------|
-| List projects     | GET       | `/projects.{format}`               | `/extended_api/projects.{format}`               | Supports `offset`, `limit`, `include=trackers,issue_categories,enabled_modules`.              |
+| Operation         | Method(s) | Core path                     | Extended path                                | Notes                                                                                       |
+|-------------------|-----------|--------------------------------|----------------------------------------------|---------------------------------------------------------------------------------------------|
+| List enumerations | GET       | `/enumerations.{format}`       | `/extended_api/enumerations.{format}`       | Use `?type=` to filter (e.g. `time_entry_activities`, `issue_priorities`).                   |
+| Create enumeration| POST      | `/enumerations.{format}`       | `/extended_api/enumerations.{format}`       | Provide `enumeration[type]` (class name) and attributes such as `name`, `is_default`, `active`. |
+| Update enumeration| PUT/PATCH | `/enumerations/:id.{format}`   | `/extended_api/enumerations/:id.{format}`   | Same attributes as create; supports `custom_field_values`.                                  |
+| Delete enumeration| DELETE    | `/enumerations/:id.{format}`   | `/extended_api/enumerations/:id.{format}`   | Optional `reassign_to_id` parameter to transfer associated records.                         |
+
 | Show project      | GET       | `/projects/:id.{format}`           | `/extended_api/projects/:id.{format}`           | `:id` accepts identifier or internal id.                                                      |
 | Create project    | POST      | `/projects.{format}`               | `/extended_api/projects.{format}`               | Payload under `project` (e.g. `name`, `identifier`, `enabled_module_names`, `custom_fields`). |
 | Update project    | PUT/PATCH | `/projects/:id.{format}`           | `/extended_api/projects/:id.{format}`           | Same payload structure as create.                                                             |
@@ -162,22 +170,33 @@ Below you will find the list of resources that expose API endpoints in Redmine 6
 
 #### Roles
 
-| Operation  | Method(s) | Core path             | Extended path                      | Notes                      |
-|------------|-----------|-----------------------|------------------------------------|----------------------------|
-| List roles | GET       | `/roles.{format}`     | `/extended_api/roles.{format}`     | —                          |
-| Show role  | GET       | `/roles/:id.{format}` | `/extended_api/roles/:id.{format}` | Includes permissions list. |
+| Operation    | Method(s) | Core path             | Extended path                      | Notes                                                                    |
+|--------------|-----------|-----------------------|------------------------------------|--------------------------------------------------------------------------|
+| List roles   | GET       | `/roles.{format}`     | `/extended_api/roles.{format}`     | —                                                                        |
+| Show role    | GET       | `/roles/:id.{format}` | `/extended_api/roles/:id.{format}` | Includes permissions list.                                               |
+| Create role  | POST      | `/roles.{format}`     | `/extended_api/roles.{format}`     | Payload under `role` (name, permissions, managed roles, visibility flags). |
+| Update role  | PUT/PATCH | `/roles/:id.{format}` | `/extended_api/roles/:id.{format}` | Same attributes as create.                                               |
+| Delete role  | DELETE    | `/roles/:id.{format}` | `/extended_api/roles/:id.{format}` | Requires admin rights; fails if still assigned to members.               |
 
 #### Trackers
 
-| Operation     | Method(s) | Core path            | Extended path                     | Notes                                                                     |
-|---------------|-----------|----------------------|-----------------------------------|---------------------------------------------------------------------------|
-| List trackers | GET       | `/trackers.{format}` | `/extended_api/trackers.{format}` | Includes fields like `default_status` and `custom_fields` when requested. |
+| Operation       | Method(s) | Core path                 | Extended path                            | Notes                                                                                 |
+|-----------------|-----------|---------------------------|------------------------------------------|---------------------------------------------------------------------------------------|
+| List trackers   | GET       | `/trackers.{format}`      | `/extended_api/trackers.{format}`        | Includes fields like `default_status` and enabled standard fields.                    |
+| Create tracker  | POST      | `/trackers.{format}`      | `/extended_api/trackers.{format}`        | Payload under `tracker` (`name`, `default_status_id`, `core_fields`, `custom_field_ids`, `project_ids`). Optional `copy_workflow_from`. |
+| Update tracker  | PUT/PATCH | `/trackers/:id.{format}`  | `/extended_api/trackers/:id.{format}`    | Same attributes as create.                                                           |
+| Delete tracker  | DELETE    | `/trackers/:id.{format}`  | `/extended_api/trackers/:id.{format}`    | Fails if issues still reference the tracker.                                         |
+
 
 #### Issue statuses
 
-| Operation           | Method(s) | Core path                  | Extended path                           | Notes |
-|---------------------|-----------|----------------------------|-----------------------------------------|-------|
-| List issue statuses | GET       | `/issue_statuses.{format}` | `/extended_api/issue_statuses.{format}` | —     |
+| Operation           | Method(s) | Core path                     | Extended path                                | Notes                                                             |
+|---------------------|-----------|--------------------------------|----------------------------------------------|-------------------------------------------------------------------|
+| List issue statuses | GET       | `/issue_statuses.{format}`     | `/extended_api/issue_statuses.{format}`     | —                                                               |
+| Create issue status | POST      | `/issue_statuses.{format}`     | `/extended_api/issue_statuses.{format}`     | Payload under `issue_status` (`name`, `is_closed`, `position`, `default_done_ratio`). |
+| Update issue status | PUT/PATCH | `/issue_statuses/:id.{format}` | `/extended_api/issue_statuses/:id.{format}` | Same attributes as create.                                      |
+| Delete issue status | DELETE    | `/issue_statuses/:id.{format}` | `/extended_api/issue_statuses/:id.{format}` | Fails if status is still used by issues or trackers.            |
+
 
 #### Custom fields
 
@@ -250,6 +269,45 @@ Below you will find the list of resources that expose API endpoints in Redmine 6
 
 This overview covers every controller action that exposes REST access in Redmine 6.1 (`accept_api_auth` in the upstream source). Whenever you extend or customise the upstream API, simply apply the same path transformation (`/extended_api/...`) to reach the mirrored behaviour.
 
+### JSON write examples
+
+The new administrative write endpoints accept JSON or XML payloads. Below are a few examples for JSON clients (`X-Redmine-API-Key` omitted for brevity):
+
+```bash
+# Create a new issue status
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -H "X-Redmine-API-Key: <token>" \
+  -d '{"issue_status":{"name":"QA Review","is_closed":false,"position":7,"default_done_ratio":50}}' \
+  https://redmine.example.com/extended_api/issue_statuses.json
+
+# Update a tracker and enable core fields
+curl -X PATCH \
+  -H "Content-Type: application/json" \
+  -H "X-Redmine-API-Key: <token>" \
+  -d '{"tracker":{"name":"Delivery","core_fields":["assigned_to_id","fixed_version_id"],"project_ids":[1,3]}}' \
+  https://redmine.example.com/extended_api/trackers/5.json
+
+# Create a custom field with depending options (redmine_depending_custom_fields installed)
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -H "X-Redmine-API-Key: <token>" \
+  -d '{"type":"IssueCustomField","custom_field":{"name":"Release window","field_format":"list","possible_values":["Week 1","Week 2"],"tracker_ids":[1,2],"role_ids":[3],"value_dependencies":{"1":[{"value":"Week 2","required":false}]}}}' \
+  https://redmine.example.com/extended_api/custom_fields.json
+
+# Delete an enumeration and reassign existing records
+curl -X DELETE \
+  -H "X-Redmine-API-Key: <token>" \
+  "https://redmine.example.com/extended_api/enumerations/12.json?reassign_to_id=8"
+
+# Create a role with custom permissions
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -H "X-Redmine-API-Key: <token>" \
+  -d '{"role":{"name":"Deployment manager","assignable":true,"permissions":["manage_versions","manage_members"],"managed_role_ids":[2,3]}}' \
+  https://redmine.example.com/extended_api/roles.json
+```
+
 ## Development
 
 Run the automated test suite with:
@@ -260,9 +318,9 @@ RAILS_ENV=test bundle exec rspec plugins/redmine_extended_api/spec
 
 ## Development roadmap
 
-1. **Phase 1 (current)**: mirror of the Redmine 6.1 REST API at `/extended_api`.
-2. **Phase 2**: progressively enable POST, PUT, PATCH and DELETE operations where missing.
-3. **Phase 3**: expose API endpoints for depending on custom fields and allow enabling "stealth mode" to suppress e-mail notifications via API.
+1. **Phase 1**: mirror of the Redmine 6.1 REST API at `/extended_api`. ✅
+2. **Phase 2 (current)**: progressively enable POST, PUT, PATCH and DELETE operations where missing (issue statuses, trackers, enumerations, custom fields, roles).
+3. **Phase 3 (planned)**: expose API endpoints for depending on custom fields and allow enabling "stealth mode" to suppress e-mail notifications via API.
 
 ## Thank you
 

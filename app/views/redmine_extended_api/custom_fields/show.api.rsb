@@ -1,0 +1,108 @@
+api.custom_field do
+  api.id @custom_field.id
+  api.name @custom_field.name
+  api.description @custom_field.description
+  api.type @custom_field.type
+  if @custom_field.class.respond_to?(:customized_class) && @custom_field.class.customized_class
+    api.customized_type @custom_field.class.customized_class.name.underscore
+  end
+  api.field_format @custom_field.field_format
+  api.regexp @custom_field.regexp
+  api.min_length @custom_field.min_length
+  api.max_length @custom_field.max_length
+  api.is_required @custom_field.is_required?
+  api.is_for_all @custom_field.is_for_all?
+  api.is_filter @custom_field.is_filter?
+  api.searchable @custom_field.searchable
+  api.multiple @custom_field.multiple?
+  api.default_value @custom_field.default_value
+  api.visible @custom_field.visible?
+  api.editable @custom_field.editable?
+  api.position @custom_field.position
+  api.full_width_layout @custom_field.try(:full_width_layout)
+  api.url_pattern @custom_field.try(:url_pattern)
+  api.text_formatting @custom_field.try(:text_formatting)
+  api.edit_tag_style @custom_field.try(:edit_tag_style)
+  api.user_role @custom_field.try(:user_role)
+  api.version_status @custom_field.try(:version_status)
+  api.extensions_allowed @custom_field.try(:extensions_allowed)
+  api.thousands_delimiter @custom_field.try(:thousands_delimiter)
+  api.ratio_interval @custom_field.try(:ratio_interval)
+
+  possible_values = @custom_field.possible_values_options
+  if possible_values.present?
+    api.array :possible_values do
+      possible_values.each do |label, value|
+        api.possible_value do
+          api.value(value || label)
+          api.label label
+        end
+      end
+    end
+  end
+
+  if @custom_field.enumerations.any?
+    api.array :enumerations do
+      @custom_field.enumerations.each do |enumeration|
+        api.enumeration do
+          api.id enumeration.id
+          api.name enumeration.name
+          api.active enumeration.active?
+          api.position enumeration.position
+        end
+      end
+    end
+  end
+
+  if @custom_field.roles.any?
+    api.array :roles do
+      @custom_field.roles.each do |role|
+        api.role do
+          api.id role.id
+          api.name role.name
+        end
+      end
+    end
+  end
+
+  if @custom_field.is_a?(IssueCustomField)
+    api.array :trackers do
+      @custom_field.trackers.each do |tracker|
+        api.tracker do
+          api.id tracker.id
+          api.name tracker.name
+        end
+      end
+    end
+    api.array :projects do
+      @custom_field.projects.each do |project|
+        api.project do
+          api.id project.id
+          api.name project.name
+          api.identifier project.identifier
+        end
+      end
+    end
+  end
+
+  plugin_attributes = [
+    :group_ids,
+    :exclude_admins,
+    :show_active,
+    :show_registered,
+    :show_locked,
+    :parent_custom_field_id,
+    :value_dependencies,
+    :default_value_dependencies,
+    :hide_when_disabled
+  ]
+
+  plugin_attributes.each do |attribute|
+    next unless @custom_field.respond_to?(attribute)
+
+    value = @custom_field.send(attribute)
+    next if value.nil? || (value.respond_to?(:empty?) && value.empty?)
+
+    api.tag!(attribute, value)
+  end
+end

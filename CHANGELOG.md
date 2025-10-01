@@ -5,3 +5,9 @@
 * Initial release exposing default Redmine APIs.
 * Added `/extended_api` proxy that mirrors the Redmine REST API while keeping the core endpoints untouched.
 * Documented every mirrored Redmine 6.1 endpoint with usage examples in the README.
+
+## 0.0.2
+
+* Enabled POST/PUT/PATCH/DELETE for issue statuses, trackers, enumerations, custom fields and roles.
+* Added API serializers that expose all administrative options, including support for depending custom fields.
+* Documented write operations in the README with cURL examples for JSON clients.
