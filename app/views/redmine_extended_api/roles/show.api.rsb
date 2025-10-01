@@ -1,0 +1,44 @@
+api.extended_api do
+  metadata = extended_api_metadata
+  api.mode metadata[:mode]
+  api.fallback_to_native metadata[:fallback_to_native]
+end
+
+api.role do
+  api.id @role.id
+  api.name @role.name
+  api.position @role.position
+  api.builtin @role.builtin?
+  api.assignable @role.assignable?
+  api.issues_visibility @role.issues_visibility if @role.respond_to?(:issues_visibility)
+  api.time_entries_visibility @role.time_entries_visibility if @role.respond_to?(:time_entries_visibility)
+  api.users_visibility @role.users_visibility if @role.respond_to?(:users_visibility)
+  api.all_roles_managed @role.try(:all_roles_managed)
+  api.permissions_all_trackers @role.try(:permissions_all_trackers)
+  api.permissions_tracker_ids Array(@role.try(:permissions_tracker_ids)) if @role.respond_to?(:permissions_tracker_ids)
+  api.default_time_entry_activity_id @role.default_time_entry_activity_id if @role.respond_to?(:default_time_entry_activity_id)
+
+  if @role.default_time_entry_activity
+    api.default_time_entry_activity do
+      api.id @role.default_time_entry_activity.id
+      api.name @role.default_time_entry_activity.name
+    end
+  end
+
+  api.array :permissions do
+    Array(@role.permissions).each do |permission|
+      api.permission permission.to_s
+    end
+  end
+
+  if @role.managed_roles.any?
+    api.array :managed_roles do
+      @role.managed_roles.each do |managed_role|
+        api.role do
+          api.id managed_role.id
+          api.name managed_role.name
+        end
+      end
+    end
+  end
+end
