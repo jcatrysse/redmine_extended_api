@@ -218,21 +218,3 @@ curl -X PATCH \
   -d '{"custom_field":{"tracker_ids":[1,4],"role_ids":[3,5],"visible":false}}' \
   https://redmine.example.com/extended_api/custom_fields/18.json
 ```
-
-#### Depending on custom field options
-
-```bash
-# Create an issue custom field with value dependencies
-curl -X POST \
-  -H "Content-Type: application/json" \
-  -H "X-Redmine-API-Key: <token>" \
-  -d '{"type":"IssueCustomField","custom_field":{"name":"Rollout window","field_format":"list","possible_values":["Week 1","Week 2"],"tracker_ids":[1,2],"role_ids":[3],"value_dependencies":{"1":[{"value":"Week 2","required":false}]},"default_value_dependencies":{"1":{"value":"Week 1"}}}}' \
-  https://redmine.example.com/extended_api/custom_fields.json
-
-# Update dependencies after introducing a new parent value
-curl -X PATCH \
-  -H "Content-Type: application/json" \
-  -H "X-Redmine-API-Key: <token>" \
-  -d '{"custom_field":{"possible_values":["Week 1","Week 2","Week 3"],"value_dependencies":{"1":[{"value":"Week 2"},{"value":"Week 3"}]},"hide_when_disabled":true}}' \
-  https://redmine.example.com/extended_api/custom_fields/22.json
-```
