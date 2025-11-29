@@ -203,6 +203,8 @@ curl -X PATCH \
 
 ### Custom fields
 
+List-based custom fields (`field_format: "list"`) still use the legacy `possible_values` array of strings. Enumeration-based custom fields (`field_format: "enumeration"`) are backed by API-managed `enumerations` objects instead. Each entry can set `name`, `active`, and `position`; include the `id` when updating to preserve identities, and pass the enumeration id as the `default_value` when you want the field to preselect one of the options.
+
 ```bash
 # Create a project custom field with explicit possible values
 curl -X POST \
@@ -211,10 +213,24 @@ curl -X POST \
   -d '{"type":"ProjectCustomField","custom_field":{"name":"Deployment region","field_format":"list","possible_values":["EU","US","APAC"],"is_required":true}}' \
   https://redmine.example.com/extended_api/custom_fields.json
 
+# Create an enumeration custom field backed by API-managed options
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -H "X-Redmine-API-Key: <token>" \
+  -d '{"type":"IssueCustomField","custom_field":{"name":"Root cause","field_format":"enumeration","enumerations":[{"name":"Configuration"},{"name":"Code"},{"name":"Third-party"}],"multiple":true}}' \
+  https://redmine.example.com/extended_api/custom_fields.json
+
 # Update an issue custom field with new trackers and roles
 curl -X PATCH \
   -H "Content-Type: application/json" \
   -H "X-Redmine-API-Key: <token>" \
   -d '{"custom_field":{"tracker_ids":[1,4],"role_ids":[3,5],"visible":false}}' \
+  https://redmine.example.com/extended_api/custom_fields/18.json
+
+# Update enumeration custom field options and keep existing ids stable
+curl -X PATCH \
+  -H "Content-Type: application/json" \
+  -H "X-Redmine-API-Key: <token>" \
+  -d '{"custom_field":{"enumerations":[{"id":12,"name":"Configuration","active":true},{"id":14,"name":"Third-party vendor","active":true},{"id":15,"name":"Process","active":false}],"default_value":"14"}}' \
   https://redmine.example.com/extended_api/custom_fields/18.json
 ```
