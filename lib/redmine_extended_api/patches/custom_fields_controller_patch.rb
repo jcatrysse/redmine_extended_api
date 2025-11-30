@@ -30,12 +30,16 @@ module RedmineExtendedApi
       def create
         if !extended_api_request?
           return super if defined?(super)
-
           return render_404
         end
 
+        enumeration_attrs = extract_enumerations_param(@custom_field)
+
         assign_filtered_attributes(@custom_field)
+
         if @custom_field.save
+          apply_enumerations(@custom_field, enumeration_attrs)
+
           call_hook(
             :controller_custom_fields_new_after_save,
             params: params,
@@ -50,12 +54,16 @@ module RedmineExtendedApi
       def update
         if !extended_api_request?
           return super if defined?(super)
-
           return render_404
         end
 
+        enumeration_attrs = extract_enumerations_param(@custom_field)
+
         assign_filtered_attributes(@custom_field)
+
         if @custom_field.save
+          apply_enumerations(@custom_field, enumeration_attrs)
+
           call_hook(
             :controller_custom_fields_edit_after_save,
             params: params,
@@ -128,6 +136,79 @@ module RedmineExtendedApi
 
       def attribute_policy_for(custom_field)
         RedmineExtendedApi::CustomFields::AttributePolicy.new(custom_field)
+      end
+
+      def extract_enumerations_param(custom_field)
+        raw_cf = params[:custom_field]
+        return [] unless raw_cf.is_a?(ActionController::Parameters) || raw_cf.is_a?(Hash)
+
+        hash = raw_cf.respond_to?(:to_unsafe_h) ? raw_cf.to_unsafe_h : raw_cf.to_h
+        return [] unless hash.is_a?(Hash)
+
+        field_format = hash['field_format'] || hash[:field_format] || custom_field.field_format
+        return [] unless field_format.to_s == 'enumeration'
+
+        enum_input = hash['enumerations'] || hash[:enumerations]
+        return [] if enum_input.blank?
+
+        list = enum_input.is_a?(Array) ? enum_input : [enum_input]
+
+        list.each_with_index.map do |entry, idx|
+          entry = entry.to_unsafe_h if entry.respond_to?(:to_unsafe_h)
+          entry = entry.to_h        if entry.respond_to?(:to_h)
+          next if entry.blank?
+
+          {
+            'id'       => entry['id'] || entry[:id],
+            'name'     => entry['name'] || entry[:name],
+            'position' => (entry['position'] || entry[:position] || idx + 1).to_i,
+            'active'   => entry.key?('active') ? entry['active'] :
+                            (entry.key?(:active) ? entry[:active] : true)
+          }
+        end.compact
+      end
+
+      def apply_enumerations(custom_field, enumeration_attrs)
+        return if enumeration_attrs.blank?
+        return unless custom_field.respond_to?(:enumerations)
+
+        existing = custom_field.enumerations.to_a
+        existing_by_id = existing.index_by(&:id)
+
+        seen_ids = []
+
+        enumeration_attrs.each do |attrs|
+          name = attrs['name'].to_s.strip
+          next if name.blank?
+
+          if attrs['id'].present?
+            # Bestaande enumeration bijwerken
+            enum = existing_by_id[attrs['id'].to_i]
+            next unless enum
+
+            seen_ids << enum.id
+            enum.name     = name
+            enum.position = attrs['position'] if attrs['position']
+            enum.active   = attrs['active'] unless attrs['active'].nil?
+            enum.save if enum.changed?
+          else
+            # Nieuwe enumeration aanmaken
+            enum = custom_field.enumerations.build(
+              name:     name,
+              position: attrs['position'],
+              active:   attrs['active']
+            )
+            enum.save
+            seen_ids << enum.id if enum.id
+          end
+        end
+
+        # Optioneel: enumerations die niet meer in de lijst zitten verwijderen of inactief maken.
+        # Als je ze wil verwijderen:
+        #
+        # (existing_by_id.keys - seen_ids).each do |id|
+        #   existing_by_id[id].destroy
+        # end
       end
     end
   end

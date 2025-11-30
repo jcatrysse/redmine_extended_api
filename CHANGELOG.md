@@ -12,3 +12,7 @@
 * Added API serializers that expose all administrative options.
 * Documented write operations in the README with cURL examples for JSON clients.
 * Added an extended_api metadata block to each extended API template so responses explicitly state whether they originated from the extended feature set or a proxied native endpoint.
+
+## 0.0.3
+
+* Resolved handling of enumerations values in the enumeration custom field.
