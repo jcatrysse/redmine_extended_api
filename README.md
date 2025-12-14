@@ -35,6 +35,10 @@ All new endpoints will have a recognisable JSON /XML payload:
 
 No database migrations are required at this stage.
 
+## Testing
+
+`RAILS_ENV=test bundle exec rspec plugins/redmine_extended_api/spec`
+
 ## Usage
 
 All REST API calls that ship with Redmine remain available at their original paths. The plugin adds a drop-in replacement under `/extended_api` where the behaviour, payloads, and permissions are identical because every request is proxied back to the core Rails stack.
@@ -56,6 +60,106 @@ All REST API calls that ship with Redmine remain available at their original pat
 | Nested endpoints  | `/projects/:id/...` | `/extended_api/projects/:id/...` |
 
 The rule is: prepend `/extended_api` to any Redmine REST API path (including nested ones) and keep the rest unchanged.
+
+### Issue-specific utilities
+
+The extended API keeps the native responses from Redmine's issue endpoints while adding a couple of quality-of-life options:
+
+- Suppress notifications when creating or updating issues by passing `notify=false` (or `send_notification=0`). The request is still fully validated, only the mail delivery is skipped.
+- Preserve history when migrating data by explicitly setting `author_id`, `created_on`, `updated_on`, or `closed_on` on issues. These overrides are only applied for admin users routed through `/extended_api`, and automatic timestamp updates are disabled for the request to keep the supplied values intact.
+- Preserve journal provenance when importing by supplying `journal[created_on]`,`journal[user_id]`, `journal[updated_on]`, or `journal[updated_by_id]` in extended issue requests. Admin-only overrides are applied to the generated journal entry while temporarily disabling journal timestamp updates to respect the provided values.
+
+### Attachment-specific utilities
+
+- Preserve uploader history on imported files by supplying `author_id` and/or `created_on` in `/extended_api/attachments` requests. Overrides are limited to admin users and keep the provided timestamp intact by disabling automatic timestamp updates for the request.
+
+#### Real-world examples for issues and journals
+
+- Import a closed issue while preserving the original author and timestamps and suppressing outbound mail:
+
+  ```bash
+  curl -X POST \
+    -H "Content-Type: application/json" \
+    -H "X-Redmine-API-Key: <token>" \
+    -d '{"issue":{"project_id":1,"tracker_id":2,"status_id":5,"subject":"Legacy outage record","description":"Backfilled from the legacy tracker","author_id":7,"created_on":"2023-11-02T08:15:00Z","updated_on":"2023-11-04T17:40:00Z","closed_on":"2023-11-04T17:40:00Z"},"notify":false}' \
+    https://redmine.example.com/extended_api/issues.json
+  ```
+
+- Add an imported journal entry to an existing issue, keep the original editor and timestamp, and avoid triggering notifications:
+
+  ```bash
+  curl -X PATCH \
+    -H "Content-Type: application/json" \
+    -H "X-Redmine-API-Key: <token>" \
+    -d '{"issue":{"notes":"Imported worklog from JIRA","journal":{"user_id":7,"updated_by_id":7,"created_on":"2023-12-01T11:00:00Z","updated_on":"2023-12-01T12:00:00Z"}},"notify":false}' \
+    https://redmine.example.com/extended_api/issues/123.json
+  ```
+
+- Upload an attachment while preserving the original uploader and timestamp (admin users only):
+
+  ```bash
+  curl --globoff -X POST \
+    -H "Content-Type: application/octet-stream" \
+    -H "X-Redmine-API-Key: <token>" \
+    --data-binary "@legacy-log.txt" \
+    "https://redmine.example.com/extended_api/uploads.json?filename=legacy-log.txt&attachment[author_id]=7&attachment[created_on]=2023-11-02T08:15:00.509723Z"
+  ```
+
+  ```bash
+  curl -X POST \
+    -H "Content-Type: application/json" \
+    -H "X-Redmine-API-Key: <token>" \
+    -d '{
+    "issue": {
+    "project_id": 1,
+    "tracker_id": 3,
+    "status_id": 5,
+    "subject": "Legacy outage record with attachment - admin",
+    "description": "Backfilled from the legacy tracker, attachment included",
+    "author_id": 9,
+    "assigned_to_id": 6,
+    "created_on": "2023-11-02T08:15:00Z",
+    "start_date": "2023-11-03",
+    "updated_on": "2023-11-04T17:40:00Z",
+    "closed_on": "2023-11-04T17:40:00Z",
+    "uploads": [
+    {
+    "token": "<upload_toke>",
+    "filename": "legacy-log.txt",
+    "content_type": "text/plain"
+    }
+    ]
+    },
+    "notify": false
+    }' \
+  https://redmine.example.com/extended_api/issues.json
+  ```     
+
+  ```bash  
+  curl -X PATCH \
+    -H "Content-Type: application/json" \
+    -H "X-Redmine-API-Key: <token>" \
+    -d '{
+    "issue": {
+    "notes": "Imported worklog from JIRA: admin, attachment included",
+    "journal": {
+    "user_id": 9,
+    "updated_by_id": 9,
+    "created_on": "2023-12-01T11:00:00Z",
+    "updated_on": "2023-12-01T12:00:00Z"
+    },
+    "uploads": [
+    {
+    "token": "<upload_toke>"",
+    "filename": "legacy-log.txt",
+    "content_type": "text/plain"
+    }
+    ]
+    },
+    "notify": false
+    }' \
+    https://redmine.example.com/extended_api/issues/90.json
+  ```
 
 ### Availability legend
 

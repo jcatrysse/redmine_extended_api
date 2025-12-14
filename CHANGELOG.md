@@ -16,3 +16,10 @@
 ## 0.0.3
 
 * Resolved handling of enumerations values in the enumeration custom field.
+
+## 0.0.4
+
+* Added admin-only issue override support (author_id, created_on, updated_on, and closed_on) when routed through the extended API.
+* Added admin-only journal override support (user, updated_on and updated_by_id) when routed through the extended API.
+* Added admin-only attachment override support (author_id and created_on) when routed through the extended API.
+* Documented the new overrides in the README.

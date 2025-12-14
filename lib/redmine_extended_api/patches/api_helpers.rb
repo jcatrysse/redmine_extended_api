@@ -113,6 +113,13 @@ module RedmineExtendedApi
           resp.headers = headers if resp.respond_to?(:headers=)
         end
       end
+
+      def parse_extended_api_time(value)
+        return value if value.is_a?(Time) || value.is_a?(ActiveSupport::TimeWithZone)
+        Time.zone.parse(value.to_s)
+      rescue StandardError
+        nil
+      end
     end
   end
 end

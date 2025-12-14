@@ -519,6 +519,7 @@ RSpec.describe 'Controller patches' do
         allow(controller).to receive(:render_api_validation_errors)
         allow(controller).to receive(:attribute_policy_for).with(custom_field).and_return(policy)
         allow(custom_field).to receive(:safe_attributes=)
+        allow(custom_field).to receive(:field_format).and_return(nil)
         allow(custom_field).to receive(:save).and_return(save_result)
       end
 
@@ -591,6 +592,7 @@ RSpec.describe 'Controller patches' do
         allow(controller).to receive(:render_api_validation_errors)
         allow(controller).to receive(:attribute_policy_for).with(custom_field).and_return(policy)
         allow(custom_field).to receive(:safe_attributes=)
+        allow(custom_field).to receive(:field_format).and_return(nil)
         allow(custom_field).to receive(:save).and_return(save_result)
       end
 
