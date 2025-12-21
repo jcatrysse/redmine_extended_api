@@ -7,6 +7,10 @@ require_relative 'api_helpers'
 module RedmineExtendedApi
   module Patches
     module IssuesControllerPatch
+      def self.prepended(base)
+        # Zorg dat de view de metadata methode kan vinden
+        base.send(:helper_method, :extended_api_metadata) if base.respond_to?(:helper_method)
+      end
       include ApiHelpers
 
       ISSUE_OVERRIDE_KEYS = %i[author_id created_on updated_on closed_on].freeze
@@ -22,6 +26,18 @@ module RedmineExtendedApi
         return super unless extended_api_request?
 
         with_extended_api_issue_context { super }
+      end
+
+      def render_api_ok(*args)
+        if extended_api_request? && api_request? && action_name == 'update'
+          journal = extended_api_journal_for_response
+          if journal
+            @journal = journal
+            return render_extended_api('journals/show')
+          end
+        end
+
+        super
       end
 
       private
@@ -153,6 +169,20 @@ module RedmineExtendedApi
 
         return true if value == false
         %w[false 0 off no].include?(value.to_s.strip.downcase)
+      end
+
+      def extended_api_journal_for_response
+        return unless defined?(@issue) && @issue
+
+        if @issue.respond_to?(:current_journal) && @issue.current_journal
+          return @issue.current_journal
+        end
+
+        return unless @issue.respond_to?(:journals)
+
+        @issue.journals.order(:id).last
+      rescue StandardError
+        nil
       end
     end
   end

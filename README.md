@@ -68,6 +68,7 @@ The extended API keeps the native responses from Redmine's issue endpoints while
 - Suppress notifications when creating or updating issues by passing `notify=false` (or `send_notification=0`). The request is still fully validated, only the mail delivery is skipped.
 - Preserve history when migrating data by explicitly setting `author_id`, `created_on`, `updated_on`, or `closed_on` on issues. These overrides are only applied for admin users routed through `/extended_api`, and automatic timestamp updates are disabled for the request to keep the supplied values intact.
 - Preserve journal provenance when importing by supplying `journal[created_on]`,`journal[user_id]`, `journal[updated_on]`, or `journal[updated_by_id]` in extended issue requests. Admin-only overrides are applied to the generated journal entry while temporarily disabling journal timestamp updates to respect the provided values.
+- Successful issue updates that create a journal entry return the journal payload when routed through `/extended_api`, making it easy to confirm the resulting notes and metadata.
 
 ### Attachment-specific utilities
 
@@ -93,6 +94,27 @@ The extended API keeps the native responses from Redmine's issue endpoints while
     -H "X-Redmine-API-Key: <token>" \
     -d '{"issue":{"notes":"Imported worklog from JIRA","journal":{"user_id":7,"updated_by_id":7,"created_on":"2023-12-01T11:00:00Z","updated_on":"2023-12-01T12:00:00Z"}},"notify":false}' \
     https://redmine.example.com/extended_api/issues/123.json
+  ```
+
+  ```json
+  {
+    "extended_api": {
+      "mode": "extended",
+      "fallback_to_native": false
+    },
+    "journal": {
+      "id": 456,
+      "issue_id": 123,
+      "notes": "Imported worklog from JIRA",
+      "created_on": "2023-12-01T11:00:00Z",
+      "private_notes": false,
+      "user": {
+        "id": 7,
+        "name": "Jane Doe"
+      },
+      "details": []
+    }
+  }
   ```
 
 - Upload an attachment while preserving the original uploader and timestamp (admin users only):

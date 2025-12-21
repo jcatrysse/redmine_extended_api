@@ -17,6 +17,10 @@
 
 * Resolved handling of enumerations values in the enumeration custom field.
 
+## 0.0.5
+
+* Returned a journal payload when an issue update succeeds through the extended API, making it easier to confirm journal updates programmatically.
+
 ## 0.0.4
 
 * Added admin-only issue override support (author_id, created_on, updated_on, and closed_on) when routed through the extended API.

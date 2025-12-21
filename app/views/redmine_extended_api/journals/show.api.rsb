@@ -1,0 +1,33 @@
+api.extended_api do
+  metadata = extended_api_metadata
+  api.mode metadata[:mode]
+  api.fallback_to_native metadata[:fallback_to_native]
+end
+
+api.journal do
+  api.id @journal.id
+  api.issue_id @journal.journalized_id if @journal.respond_to?(:journalized_id)
+  api.notes @journal.notes
+  api.created_on @journal.created_on
+  api.private_notes @journal.private_notes? if @journal.respond_to?(:private_notes?)
+
+  if @journal.user
+    api.user do
+      api.id @journal.user.id
+      api.name @journal.user.name
+    end
+  end
+
+  if @journal.respond_to?(:details)
+    api.array :details do
+      @journal.details.each do |detail|
+        api.detail do
+          api.property detail.property
+          api.name detail.prop_key
+          api.old_value detail.old_value
+          api.new_value detail.value
+        end
+      end
+    end
+  end
+end

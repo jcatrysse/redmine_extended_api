@@ -3,6 +3,11 @@
 module RedmineExtendedApi
   module Patches
     module ApiHelpers
+      def self.included(base)
+        super
+        base.helper_method(:extended_api_metadata) if base.respond_to?(:helper_method)
+      end
+
       private
 
       def render_extended_api(template, status: :ok, location: nil)

@@ -20,7 +20,7 @@ Redmine::Plugin.register :redmine_extended_api do
   author 'Jan Catrysse'
   description 'This plugin extends the default Redmine API by adding new endpoints and enabling write operations where only read access was previously available.'
   url 'https://github.com/jcatrysse/redmine_extended_api'
-  version '0.0.4'
+  version '0.0.5'
   requires_redmine version_or_higher: '5.0'
 end
 
