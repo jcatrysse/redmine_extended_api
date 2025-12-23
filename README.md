@@ -66,6 +66,7 @@ The rule is: prepend `/extended_api` to any Redmine REST API path (including nes
 The extended API keeps the native responses from Redmine's issue endpoints while adding a couple of quality-of-life options:
 
 - Suppress notifications when creating or updating issues by passing `notify=false` (or `send_notification=0`). The request is still fully validated, only the mail delivery is skipped.
+- Suppress notifications when creating or deleting issue relations by passing `notify=false` (or `send_notification=0`) on relation endpoints. See the [core Redmine relations API](https://www.redmine.org/projects/redmine/wiki/Rest_issuerelations) for the base payloads.
 - Preserve history when migrating data by explicitly setting `author_id`, `created_on`, `updated_on`, or `closed_on` on issues. These overrides are only applied for admin users routed through `/extended_api`, and automatic timestamp updates are disabled for the request to keep the supplied values intact.
 - Preserve journal provenance when importing by supplying `journal[created_on]`,`journal[user_id]`, `journal[updated_on]`, or `journal[updated_by_id]` in extended issue requests. Admin-only overrides are applied to the generated journal entry while temporarily disabling journal timestamp updates to respect the provided values.
 - Successful issue updates that create a journal entry return the journal payload when routed through `/extended_api`, making it easy to confirm the resulting notes and metadata.
@@ -115,6 +116,16 @@ The extended API keeps the native responses from Redmine's issue endpoints while
       "details": []
     }
   }
+  ```
+
+- Create a relation without notifying watchers (extended API variant of the [core relations endpoint](https://www.redmine.org/projects/redmine/wiki/Rest_issuerelations)):
+
+  ```bash
+  curl -X POST \
+    -H "Content-Type: application/json" \
+    -H "X-Redmine-API-Key: <token>" \
+    -d '{"relation":{"issue_to_id":456,"relation_type":"relates"},"notify":false}' \
+    https://redmine.example.com/extended_api/issues/123/relations.json
   ```
 
 - Upload an attachment while preserving the original uploader and timestamp (admin users only):

@@ -160,15 +160,7 @@ module RedmineExtendedApi
       end
 
       def suppress_issue_notifications?
-        keys = %w[notify notifications send_notification send_notifications]
-
-        key = keys.find { |k| params.key?(k) || params.key?(k.to_sym) }
-        return false unless key
-
-        value = params[key] || params[key.to_sym]
-
-        return true if value == false
-        %w[false 0 off no].include?(value.to_s.strip.downcase)
+        extended_api_suppress_notifications?(params)
       end
 
       def extended_api_journal_for_response

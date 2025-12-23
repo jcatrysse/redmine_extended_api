@@ -7,6 +7,7 @@ require_relative 'lib/redmine_extended_api/patches/attachment_patch'
 require_relative 'lib/redmine_extended_api/patches/custom_fields_controller_patch'
 require_relative 'lib/redmine_extended_api/patches/enumerations_controller_patch'
 require_relative 'lib/redmine_extended_api/patches/issue_patch'
+require_relative 'lib/redmine_extended_api/patches/issue_relations_controller_patch'
 require_relative 'lib/redmine_extended_api/patches/issue_statuses_controller_patch'
 require_relative 'lib/redmine_extended_api/patches/issues_controller_patch'
 require_relative 'lib/redmine_extended_api/patches/journal_patch'
@@ -20,7 +21,7 @@ Redmine::Plugin.register :redmine_extended_api do
   author 'Jan Catrysse'
   description 'This plugin extends the default Redmine API by adding new endpoints and enabling write operations where only read access was previously available.'
   url 'https://github.com/jcatrysse/redmine_extended_api'
-  version '0.0.5'
+  version '0.1.0'
   requires_redmine version_or_higher: '5.0'
 end
 
@@ -30,6 +31,7 @@ CustomFieldsController.prepend RedmineExtendedApi::Patches::CustomFieldsControll
 EnumerationsController.prepend RedmineExtendedApi::Patches::EnumerationsControllerPatch
 Issue.include RedmineExtendedApi::Patches::IssuePatch
 Issue.include RedmineExtendedApi::Patches::NotificationSuppressionPatch
+IssueRelationsController.prepend RedmineExtendedApi::Patches::IssueRelationsControllerPatch
 IssuesController.prepend RedmineExtendedApi::Patches::IssuesControllerPatch
 IssueStatusesController.prepend RedmineExtendedApi::Patches::IssueStatusesControllerPatch
 Journal.include RedmineExtendedApi::Patches::NotificationSuppressionPatch

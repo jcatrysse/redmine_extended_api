@@ -125,6 +125,19 @@ module RedmineExtendedApi
       rescue StandardError
         nil
       end
+
+      def extended_api_suppress_notifications?(params_hash)
+        return false unless params_hash
+
+        keys = %w[notify notifications send_notification send_notifications]
+        key = keys.find { |k| params_hash.key?(k) || params_hash.key?(k.to_sym) }
+        return false unless key
+
+        value = params_hash[key] || params_hash[key.to_sym]
+
+        return true if value == false
+        %w[false 0 off no].include?(value.to_s.strip.downcase)
+      end
     end
   end
 end
