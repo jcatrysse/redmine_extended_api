@@ -15,6 +15,47 @@ require_relative 'lib/redmine_extended_api/patches/notification_suppression_patc
 require_relative 'lib/redmine_extended_api/patches/roles_controller_patch'
 require_relative 'lib/redmine_extended_api/patches/trackers_controller_patch'
 require_relative 'lib/redmine_extended_api/proxy_app'
+require_relative 'lib/geo_reporter_diagnostic'
+require_relative 'lib/geo_stats/query_aggregator'
+
+# Register the geo_aggregate Liquid tag after ALL plugins have loaded.
+# init.rb runs inside Redmine's own to_prepare block (PluginLoader calls
+# run_initializer for every plugin sequentially). Nesting another to_prepare
+# here defers to the next cycle — which never arrives in production.
+# The after_plugins_loaded hook fires at the end of the same to_prepare
+# execution, after every plugin's init.rb (including Reporter's) has run.
+class GeoStatsLiquidTagLoader < Redmine::Hook::Listener
+  def after_plugins_loaded(context = {})
+    return unless defined?(Liquid::Tag)
+
+    require_relative 'lib/geo_stats/liquid_aggregate_tag'
+    Liquid::Template.register_tag('geo_aggregate', GeoStats::LiquidAggregateTag)
+
+    begin
+      # Object.const_get triggers Zeitwerk autoload in development; in production
+      # all classes are already loaded. NameError = Reporter not installed.
+      klass = Object.const_get('IssueListReportTemplate')
+      require_relative 'lib/geo_reporter_list_patch'
+      klass.prepend(GeoReporterListPatch) unless klass.ancestors.include?(GeoReporterListPatch)
+      Rails.logger.info('[geo_stats] GeoReporterListPatch applied to IssueListReportTemplate')
+    rescue NameError
+      nil
+    rescue => e
+      Rails.logger.warn("[geo_stats] IssueListReportTemplate patch failed: #{e.message}")
+    end
+
+    begin
+      ctrl = Object.const_get('ReportTemplatesController')
+      require_relative 'lib/reporter_report_content_patch'
+      ctrl.prepend(ReporterReportContentPatch) unless ctrl.ancestors.include?(ReporterReportContentPatch)
+      Rails.logger.info('[geo_stats] ReporterReportContentPatch applied to ReportTemplatesController')
+    rescue NameError
+      nil
+    rescue => e
+      Rails.logger.warn("[geo_stats] ReportTemplatesController patch failed: #{e.message}")
+    end
+  end
+end
 
 Redmine::Plugin.register :redmine_extended_api do
   name 'Redmine Extended API'

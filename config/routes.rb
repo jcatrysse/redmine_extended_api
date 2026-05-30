@@ -6,6 +6,8 @@ Rails.application.routes.draw do
     get 'enumerations/:id(.:format)', to: 'enumerations#show', as: nil
     get 'issue_statuses/:id(.:format)', to: 'issue_statuses#show', as: nil
     get 'trackers/:id(.:format)', to: 'trackers#show', as: nil
+    get 'geo/stats/monthly_flow(.:format)', to: 'geo_stats#monthly_flow',
+        defaults: { format: :json }, as: nil
   end
 
   mount RedmineExtendedApi.proxy_app => RedmineExtendedApi::API_PREFIX

@@ -371,3 +371,243 @@ curl -X PATCH \
   -d '{"custom_field":{"enumerations":[{"id":12,"name":"Configuration","active":true},{"id":14,"name":"Third-party vendor","active":true},{"id":15,"name":"Process","active":false}],"default_value":"14"}}' \
   https://redmine.example.com/extended_api/custom_fields/18.json
 ```
+
+## `{% geo_aggregate %}` — server-side statistics for Reporter templates
+
+The plugin registers a custom [Liquid](https://shopify.github.io/liquid/) tag that runs pure SQL aggregations directly against the issue scope of a [RedmineUp Reporter](https://www.redmineup.com/pages/plugins/reporter) template. It replaces slow `{% for issue in issues %}` loops — which instantiate every matched issue as a Ruby object — with a single `COUNT(*) GROUP BY` query. On a 10 000-issue scope this typically reduces chart-data generation from several minutes to under a second.
+
+> **Requirements**
+> - RedmineUp Reporter plugin (provides the Liquid template engine and `IssuesDrop`)
+> - MySQL / MariaDB / PostgreSQL
+> - Admin is not required; the tag inherits whatever scope the report already has
+
+### How it works
+
+When Reporter renders a template it builds an ActiveRecord scope from the report's query filters and exposes it as the `issues` variable. The `{% geo_aggregate %}` tag reaches inside that variable, grabs the scope (without executing it), runs one or two SQL aggregations, and assigns the result to a Liquid variable you name. No Issue Ruby objects are ever loaded.
+
+### Two modes
+
+| Mode | Triggered by | Returns |
+|---|---|---|
+| **Time-series** | absence of `group_by:` | `labels`, `created`, `closed`, `open_now`, `total`, `period`, `periods` |
+| **Breakdown** | presence of `group_by:` | `buckets` (array of `{label, count}`), `total`, `group_by` |
+
+---
+
+### Time-series mode
+
+Counts issues created and closed within rolling time windows, grouped by day, week, month, or year.
+
+**Syntax**
+
+```liquid
+{% geo_aggregate
+     from: issues
+     period: month
+     periods: 6
+     closed_statuses: "Closed;Rejected"
+     assign_to: geo %}
+```
+
+| Parameter | Default | Description |
+|---|---|---|
+| `from:` | `issues` | Liquid variable that holds the Reporter issues drop. Usually `issues`. |
+| `period:` | `month` | Granularity: `day`, `week`, `month`, or `year`. |
+| `periods:` | 30 / 13 / 6 / 3 | Number of buckets to go back (day / week / month / year). Capped at 90 / 52 / 24 / 10. |
+| `closed_statuses:` | _(is_closed flag)_ | Semicolon- or comma-separated status names that count as "closed". Omit to use Redmine's built-in `is_closed` flag. |
+| `assign_to:` | `geo` | Name of the Liquid variable to assign the result to. |
+
+**Result keys**
+
+| Key | Type | Description |
+|---|---|---|
+| `labels` | Array of strings | One label per bucket, oldest first. Format: `2026-05-30` / `2026-W22` / `2026-05` / `2026`. |
+| `created` | Array of integers | Issues created in each bucket. Aligned with `labels`, zero-filled. |
+| `closed` | Array of integers | Issues closed in each bucket (by `closed_on`). Aligned with `labels`, zero-filled. |
+| `open_now` | Integer | Issues currently in a non-closed status (snapshot at render time). |
+| `total` | Integer | Total issues in the scope regardless of period. |
+| `period` | String | Echoed back — useful for dynamic chart titles. |
+| `periods` | Integer | Actual number of buckets used after capping. |
+
+**Period limits and defaults**
+
+| `period:` | Default buckets | Maximum |
+|---|---|---|
+| `day` | 30 | 90 |
+| `week` | 13 | 52 |
+| `month` | 6 | 24 |
+| `year` | 3 | 10 |
+
+**Examples**
+
+Monthly created-vs-closed chart for the last 6 months:
+
+```liquid
+{% geo_aggregate from: issues, period: month, periods: 6, assign_to: geo %}
+
+<script>
+const labels  = {{ geo.labels  | json }};
+const created = {{ geo.created | json }};
+const closed  = {{ geo.closed  | json }};
+</script>
+```
+
+Weekly view of the last 13 weeks, using explicit closed statuses:
+
+```liquid
+{% geo_aggregate from: issues,
+                 period: week, periods: 13,
+                 closed_statuses: "Closed;Rejected;Won't fix",
+                 assign_to: weekly %}
+
+Open right now: {{ weekly.open_now }} of {{ weekly.total }} total
+```
+
+Daily activity for the past 30 days:
+
+```liquid
+{% geo_aggregate from: issues, period: day, periods: 30, assign_to: daily %}
+```
+
+Yearly summary for an executive dashboard:
+
+```liquid
+{% geo_aggregate from: issues, period: year, periods: 3, assign_to: yearly %}
+```
+
+---
+
+### Breakdown mode
+
+Counts issues grouped by a categorical dimension (status, priority, tracker, etc.). Useful for pie charts, bar charts, and summary tables.
+
+**Syntax**
+
+```liquid
+{% geo_aggregate
+     from: issues
+     group_by: tracker
+     assign_to: by_tracker %}
+```
+
+| Parameter | Default | Description |
+|---|---|---|
+| `from:` | `issues` | Same as time-series. |
+| `group_by:` | _(required for this mode)_ | Dimension to group by. See supported values below. |
+| `assign_to:` | `geo` | Name of the Liquid variable to assign the result to. |
+
+**Supported `group_by:` values**
+
+| Value | Groups by | Null label |
+|---|---|---|
+| `status` | Issue status name | `None` |
+| `priority` | Issue priority name | `None` |
+| `tracker` | Tracker name | `None` |
+| `assignee` | Assigned user's login | `Unassigned` |
+| `author` | Author's login | `None` |
+| `category` | Issue category name | `None` |
+| `version` | Target version name | `None` |
+
+**Result keys**
+
+| Key | Type | Description |
+|---|---|---|
+| `buckets` | Array of `{label, count}` | One entry per distinct value, sorted by count descending. |
+| `total` | Integer | Sum of all bucket counts. |
+| `group_by` | String | Echoed back — useful for dynamic chart titles. |
+
+**Examples**
+
+Issues by tracker (for a doughnut chart):
+
+```liquid
+{% geo_aggregate from: issues, group_by: tracker, assign_to: by_tracker %}
+
+Total: {{ by_tracker.total }}
+{% for b in by_tracker.buckets %}
+  {{ b.label }}: {{ b.count }}
+{% endfor %}
+```
+
+Issues by status and by priority side by side:
+
+```liquid
+{% geo_aggregate from: issues, group_by: status,   assign_to: by_status %}
+{% geo_aggregate from: issues, group_by: priority, assign_to: by_priority %}
+```
+
+Issues by assignee — who has the most open work:
+
+```liquid
+{% geo_aggregate from: issues, group_by: assignee, assign_to: by_assignee %}
+
+{% for b in by_assignee.buckets %}
+  {{ b.label }} — {{ b.count }} issue(s)
+{% endfor %}
+```
+
+---
+
+### Using both modes together
+
+Multiple `{% geo_aggregate %}` tags in the same template are independent. Combine them freely:
+
+```liquid
+{# Time-series for the trend chart #}
+{% geo_aggregate from: issues, period: month, periods: 6, assign_to: trend %}
+
+{# Breakdowns for pie charts #}
+{% geo_aggregate from: issues, group_by: tracker,  assign_to: by_tracker %}
+{% geo_aggregate from: issues, group_by: priority, assign_to: by_priority %}
+{% geo_aggregate from: issues, group_by: assignee, assign_to: by_assignee %}
+
+<p>{{ trend.total }} issues total — {{ trend.open_now }} currently open</p>
+
+<script>
+// Trend chart
+const trendLabels  = {{ trend.labels  | json }};
+const trendCreated = {{ trend.created | json }};
+const trendClosed  = {{ trend.closed  | json }};
+
+// Tracker doughnut
+const trackerLabels = {{ by_tracker.buckets | map: 'label' | json }};
+const trackerCounts = {{ by_tracker.buckets | map: 'count' | json }};
+
+// Priority bar
+const priorityLabels = {{ by_priority.buckets | map: 'label' | json }};
+const priorityCounts = {{ by_priority.buckets | map: 'count' | json }};
+</script>
+```
+
+### Replacing a `{% for %}` loop
+
+Before (slow — instantiates every issue):
+
+```liquid
+{% assign created_this_month = 0 %}
+{% for issue in issues %}
+  {% if issue.created_on >= some_date %}
+    {% assign created_this_month = created_this_month | plus: 1 %}
+  {% endif %}
+{% endfor %}
+```
+
+After (fast — one SQL query, no Ruby objects):
+
+```liquid
+{% geo_aggregate from: issues, period: month, periods: 1, assign_to: geo %}
+Created this month: {{ geo.created | last }}
+```
+
+### Error handling
+
+If the tag cannot resolve a scope or a database error occurs, it assigns an empty-safe hash to the target variable (all arrays empty, all counts zero) and logs a warning to `rails/log/production.log`. The rest of the template continues rendering normally.
+
+```liquid
+{# Safe to iterate even on error #}
+{% for b in by_tracker.buckets %}...{% endfor %}
+
+{# Safe to display even on error #}
+{{ geo.total }}    {# → 0 #}
+{{ geo.open_now }} {# → 0 #}
+```

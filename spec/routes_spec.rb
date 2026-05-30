@@ -48,7 +48,7 @@ RSpec.describe 'extended API routes' do
       end
     end
 
-    %w[CustomFields Enumerations IssueStatuses Trackers].each do |name|
+    %w[CustomFields Enumerations IssueStatuses Trackers GeoStats].each do |name|
       const_name = "#{name}Controller"
       stub_const(const_name, Class.new(base_controller))
     end
@@ -90,5 +90,20 @@ RSpec.describe 'extended API routes' do
     expect(params[:action]).to eq('show')
     expect(params[:id]).to eq('11')
     expect(params[:format]).to eq('json')
+  end
+
+  it 'recognizes the geo stats monthly_flow route with JSON format' do
+    params = route_set.recognize_path('/geo/stats/monthly_flow.json', method: :get)
+
+    expect(params[:controller]).to eq('geo_stats')
+    expect(params[:action]).to eq('monthly_flow')
+    expect(params[:format]).to eq('json')
+  end
+
+  it 'recognizes the geo stats monthly_flow route without explicit format (defaults to json)' do
+    params = route_set.recognize_path('/geo/stats/monthly_flow', method: :get)
+
+    expect(params[:controller]).to eq('geo_stats')
+    expect(params[:action]).to eq('monthly_flow')
   end
 end
