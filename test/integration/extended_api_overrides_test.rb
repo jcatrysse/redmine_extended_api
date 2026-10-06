@@ -5,6 +5,8 @@ require File.expand_path('../../../../test/test_helper', __dir__)
 # Runs against a real Redmine (database, callbacks, optimistic locking), where
 # the specs in spec/ use doubles.
 class ExtendedApiOverridesTest < Redmine::ApiTest::Base
+  include ActiveJob::TestHelper
+
   def test_create_issue_as_admin_persists_author_and_timestamps
     assert_difference 'Issue.count' do
       post '/extended_api/issues.json?notify=false',
@@ -105,5 +107,38 @@ class ExtendedApiOverridesTest < Redmine::ApiTest::Base
       assert_response :created
     end
     assert_empty ActionMailer::Base.deliveries
+  end
+
+  # Redmine 7 webhooks render the issue when the transaction commits, after the
+  # overrides were written, so a hook sees the imported author and dates.
+  def test_webhook_payload_of_created_issue_carries_the_overrides
+    original_adapter = ActiveJob::Base.queue_adapter
+    ActiveJob::Base.queue_adapter = :test
+    WebhookEndpointValidator.class_eval { @blocked_hosts = nil }
+    hook = Webhook.create!(url: 'https://example.com/hook', user: User.find(1),
+                           projects: [Project.find(1)], events: ['issue.created'], active: true)
+
+    with_settings webhooks_enabled: '1' do
+      post '/extended_api/issues.json?notify=false',
+           params: {issue: {project_id: 1, tracker_id: 1, subject: 'Imported with hook',
+                            author_id: 2, created_on: '2020-01-02T03:04:05Z'}},
+           headers: credentials('admin')
+      assert_response :created
+    end
+
+    job = enqueued_jobs.detect { |j| j[:job] == WebhookJob }
+    assert job, 'no webhook job enqueued'
+    hook_id, json = job[:args]
+    payload = ActiveSupport::JSON.decode(json)
+    assert_equal hook.id, hook_id
+    assert_equal 2, payload.dig('data', 'issue', 'author', 'id')
+    assert_equal User.find(2).name, payload.dig('data', 'issue', 'author', 'name')
+    assert_equal Time.utc(2020, 1, 2, 3, 4, 5), Time.zone.parse(payload.dig('data', 'issue', 'created_on')).utc
+    # and the hook tells what is stored
+    issue = Issue.find(payload.dig('data', 'issue', 'id'))
+    assert_equal issue.author_id, payload.dig('data', 'issue', 'author', 'id')
+    assert_equal issue.created_on.utc, Time.zone.parse(payload.dig('data', 'issue', 'created_on')).utc
+  ensure
+    ActiveJob::Base.queue_adapter = original_adapter
   end
 end
