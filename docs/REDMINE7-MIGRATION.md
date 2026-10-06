@@ -18,16 +18,33 @@ what is left. Written 2026-10-06 from a measured analysis (report at the bottom)
 | Plugin id | `redmine_extended_api` |
 | GEOxyz runs today | `main` |
 | Upstream | geen |
-| Runs on Redmine 7 as is | DEELS |
+| Runs on Redmine 7 as is | DEELS (before this branch); JA on this branch |
 | Upstream sync | GEEN UPSTREAM |
 | After sync | n.v.t. |
 | Complexity (1 trivial .. 5 rewrite) | 2 |
 | Measured on | Redmine 7.0.1 (7.0-stable-GEOxyz + latest 7.0-stable), Rails 8.1.3.1, Ruby 3.3.6, PostgreSQL 16 and MariaDB 10.11 |
 | Branch head when this file was written | `fed0232` |
+| Migration session finished | 2026-10-06, all work list items done, see "Results" |
 
 ## Already on this branch
 
-- nothing: the branch equals the branch GEOxyz runs today.
+All runs on 7.0-stable-GEOxyz (Redmine 7.0.1, Rails 8.1.3.1, Ruby 3.3.6) unless said otherwise. Every fix
+has a test that fails without it; all of them also run on 5.1-stable.
+
+| commit | what | found by |
+|---|---|---|
+| `431e985` | Issue overrides (author_id, created_on, updated_on, closed_on) on create were silently lost on Rails 7.1+: `update_columns` adds the stale in-memory `lock_version` to its WHERE. Now `where(id:).update_all` (the Rails 6.1 behaviour). Spec fake updated. | analysis, work list 1-2 |
+| `c5b38d3` | Test: Redmine 7 webhooks carry the imported author/dates, equal to what is stored. | work list 5 |
+| `8378146` | DELETE of an issue status in use: 422 with core's message instead of 500 (`check_integrity` raises). | e2e |
+| `e5add4c` | Refused deletes (tracker/role in use, custom field) came back as an empty 422 (`render_error` answers API formats with `head`); now `{"errors":[reason]}`. | e2e |
+| `94c5744` | Custom field create without a valid `type`: 422 `Type is invalid` instead of 200 with core's HTML type picker. | e2e |
+| `f175456` | Override values that cannot be stored (unparseable time, unknown user id) are refused with 422 before anything is saved. Before: issue/attachment saved with created_on NULL, journal 500, and on Redmine 7 a 500 from the webhook payload after the issue was committed. | e2e |
+| `8b18fc3` | notify=false used `Mailer.with_deliveries(false)`, which switches mail off for the whole process: mail of other requests/async jobs delivered meanwhile was lost (seen in the e2e run). Replaced by a thread-local mail interceptor. | e2e |
+| `6704885` | Issue update without changes: 204 like core, not 200 with a journal without id. | e2e |
+| `900d3f2` | Proxy dropped the parsed form but left `rack.request.form_input`: every form encoded POST/PUT through /extended_api was a 500 on Redmine 5.1 (Rack 2). JSON was fine. | tests on 5.1 |
+| `1df0d59`, `7d3dee7` | Test kit: PostgreSQL provisioning as root; file mail delivery only for the server env (it leaked into the test env and made "no mail" tests pass vacuously). | setup |
+| `c49144c`, `b79769a`, `bf7bc7c` | Tests run on 5.1 too; tolerate plugins that widen core permissions (redmine_editauthor); review fix. | 5.1 run, together run, OpenAI review |
+| `4c7729a`, `22c630d` | End to end scenarios (test/e2e) and screenshots (docs/e2e). | |
 
 ## Work list for the migration session
 
@@ -35,18 +52,18 @@ In this order: things that break, security, the GEOxyz changes, the open items, 
 
 **Priority items**
 
-1. Fix lib/redmine_extended_api/patches/issue_patch.rb:99 (update_columns + lock_version on Rails 8 loses author_id/created_on overrides) together with its spec.
+1. Fix lib/redmine_extended_api/patches/issue_patch.rb:99 (update_columns + lock_version on Rails 8 loses author_id/created_on overrides) together with its spec. **DONE** `431e985` (integration test fails without it on 7.0; spec fake now records `where(id:).update_all`).
 
 **Open items from the analysis** (Dutch; where they conflict with a decision or a priority item above, those win)
 
-2. lib/redmine_extended_api/patches/issue_patch.rb:99 update_columns -> update_all (of lock_version herladen) zodat author_id/created_on-overrides bij issue-create weer werken; spec/issue_patch_spec.rb mee aanpassen
-3. Issue-update met updated_on/closed_on-override testen op R7
+2. lib/redmine_extended_api/patches/issue_patch.rb:99 update_columns -> update_all (of lock_version herladen) zodat author_id/created_on-overrides bij issue-create weer werken; spec/issue_patch_spec.rb mee aanpassen. **DONE** with item 1 (`update_all`); curl/e2e: issue-overrides scenario.
+3. Issue-update met updated_on/closed_on-override testen op R7. **DONE**: worked already on R7 (no lock_version conflict on update); covered by `test_update_issue_as_admin_persists_updated_on_and_closed_on`, a second update after an override (optimistic locking intact) and the e2e screenshot `issue-overrides-admin-update`.
 
 **Checks**
 
-4. Run the plugin's whole test suite on Redmine 7.0-stable-GEOxyz with PostgreSQL AND MariaDB, and once on 5.1-stable if the branch is meant to stay 5.1-compatible.
-5. Check Redmine 7 webhooks against this plugin (see "Rules"), and note the result here even if nothing is needed.
-6. Verify every feature of the plugin by hand on a running Redmine 7 (screenshots).
+4. Run the plugin's whole test suite on Redmine 7.0-stable-GEOxyz with PostgreSQL AND MariaDB, and once on 5.1-stable if the branch is meant to stay 5.1-compatible. **DONE**, numbers under "Results".
+5. Check Redmine 7 webhooks against this plugin (see "Rules"), and note the result here even if nothing is needed. **DONE**: the issue payload is rendered in `after_*_commit`, after the plugin's `after_save` wrote the overrides, so `issue.created`/`issue.updated` carry the imported author and dates, equal to the database (integration test + real webhook received in the e2e run, screenshot `issue-overrides-webhook-payloads`). An unparseable override date used to make the webhook payload raise (500 after commit): fixed by `f175456`. notify=false does not suppress webhooks (mail only): see open question 2.
+6. Verify every feature of the plugin by hand on a running Redmine 7 (screenshots). **DONE**, see "Inventory of functions".
 
 ## GEOxyz changes to review or re-apply
 
@@ -56,7 +73,91 @@ Own plugin: all of it is GEOxyz code, so there is nothing to re-apply. While mig
 
 Actions the person doing the upgrade must take, or know about, for this plugin:
 
-- None known. Add here what the session finds.
+- No migrations, no settings, no files. Deploy the branch and restart.
+- Behaviour changes API clients may notice (all on `/extended_api`, all fixes): an admin override with a
+  value that cannot be stored now answers 422 (`"Created is invalid"`, `"Author is invalid"`) instead of
+  saving NULL/dangling data; refused deletes now carry the reason in `errors`; a custom field create
+  without `type` answers 422 instead of HTML; an issue update without changes answers 204 like core.
+- If an import ran with garbage dates before, look for broken rows:
+  `Issue.where(created_on: nil)`, `Attachment.where(created_on: nil)`, issues/journals whose
+  author_id/user_id has no user.
+- REST API stays required (Administration > Settings > **Integrations** on Redmine 7, the tab was "API").
+
+## Results (2026-10-06)
+
+| run | result |
+|---|---|
+| tests, 7.0-stable-GEOxyz, PostgreSQL 16.15 | minitest 25 runs, 108 assertions, 0 failures; rspec 157 examples, 0 failures |
+| tests, 7.0-stable-GEOxyz, MariaDB 10.11.14 | minitest 25 runs, 108 assertions, 0 failures; rspec 157 examples, 0 failures |
+| tests, 5.1-stable, PostgreSQL, Ruby 3.2.6 | minitest 25 runs, 0 failures, 1 skip (webhook test: no webhooks before 7.0); rspec 157 examples, 0 failures |
+| baseline before changes (7.0, PostgreSQL) | rspec 147 examples, 0 failures (all doubles: the update_columns bug was invisible to them) |
+| e2e, PostgreSQL, production mode | smoke + core + 11 scenarios, 78 screenshots, 0 problems (`docs/e2e/`) |
+| e2e, MariaDB, production mode | same set, 78 screenshots, 0 problems (not committed, identical captions) |
+| together with redmine_depending_custom_fields, redmine_view_issue_description, redmine_itil_priority, redmine_editauthor (their redmine70-migration branches), PostgreSQL | tests green after `b79769a`; e2e: no failure caused by this plugin. Differences are the other plugins' features and equal on core and extended paths: with redmine_editauthor a non-admin with its permission (and the core path) sets `author_id` (created_on stays ignored); with redmine_view_issue_description the reporter/outsider get 403 on `/issues/1` (kit core flow) and on notes. |
+| migrations up/down | n.v.t.: the plugin has no migrations. Boot and eager load: production server started on both databases. |
+| OpenAI review | `docs/reviews/openai-2026-10-06-b79769a.md`: 6 findings, 1 fixed (`bf7bc7c`), 5 refuted with a resolution each; second run `openai-2026-10-06-a236ea9.md`: no findings |
+
+## Inventory of functions
+
+The plugin has no pages, menus, permissions, settings, hooks, macros, mail handlers, rake tasks or
+cron; every function is a REST endpoint under `/extended_api` (init.rb, config/routes.rb, patches).
+Each scenario calls the API through the browser context as the seeded users and screenshots the
+exchange and the Redmine page that shows the result.
+
+| function | how a user reaches it | scenario | screenshots (docs/e2e) |
+|---|---|---|---|
+| Proxy: every core REST endpoint under `/extended_api`, `x-redmine-extended-api: native`, HTML routes 404, REST API setting respected | any API client | `test/e2e/proxy.mjs` | proxy-rest-api-on, -same-as-core, -permissions, -not-api, -rest-api-off, -rest-api-off-refused |
+| Issue statuses show/create/update/delete (extended only) | admin API | `issue_statuses.mjs` | issue-statuses-admin-crud, -admin-list, -refused, -delete |
+| Trackers show/create (copy_workflow_from)/update/delete | admin API | `trackers.mjs` | trackers-admin-crud, -admin-list, -admin-edit, -in-project, -refused, -delete |
+| Roles create/update/delete (show/index core) | admin API | `roles.mjs` | roles-admin-crud, -admin-edit, -refused, -delete |
+| Custom fields show/create (list, enumeration)/update/delete | admin API | `custom_fields.mjs` | custom-fields-admin-create, -admin-update, -admin-list, -admin-edit, -issue-form, -refused, -delete |
+| Enumerations index by type/show/create/update/delete with reassign_to_id | admin API (index for all API users) | `enumerations.mjs` | enumerations-admin-crud, -admin-list, -refused, -reassign |
+| Issue overrides author_id/created_on/updated_on/closed_on, Redmine 7 webhooks | admin API, ignored for others and on the core path | `issue_overrides.mjs` | issue-overrides-webhook, -admin-create, -admin-create-page, -admin-update, -admin-update-page, -webhook-payloads, -ignored, -manager-page, -refused |
+| Journal overrides user_id/created_on/updated_on/updated_by_id, journal payload in the answer | admin API | `journal_overrides.mjs` | journal-overrides-admin, -history, -ignored, -history-member |
+| Attachment overrides author_id/created_on on `/extended_api/uploads` | admin API | `attachment_overrides.mjs` | attachment-overrides-admin, -issue-page, -ignored, -refused, -issue-page-member |
+| notify=false / send_notification=0 on issues and relations | any API user | `notifications.mjs` | notifications-calls, -mail-count, -quiet-issue |
+| Issue relations create/delete (core permissions, notify=false) | members with manage_issue_relations | `relations.mjs` | relations-create, -issue-page, -refused, -delete, -issue-page-after |
+| Show routes only under `/extended_api` (core `/trackers/1.json` etc. 404) | API | in the scenarios above and `smoke.mjs` | smoke-13..15, the -refused screenshots |
+
+Users per scenario: admin (everything), manager (all project permissions, not admin: admin endpoints
+403, overrides ignored), reporter (core Reporter role: 403 where core refuses), outsider (no membership:
+private project refused), anonymous (401). "Before" pictures on 5.1 were not made: the plugin has no
+layout, and the behaviour differences are shown by the tests that fail without each fix.
+
+## Observations not fixed (minor, behaviour as on 5.1)
+
+- An imported journal with only `created_on` gets `updated_on` = now, so Redmine shows it as "Edited"
+  (screenshot journal-overrides-history). Sending `updated_on` too avoids it.
+- Tracker-in-use message: `strip_tags` of core's HTML message leaves no space after the first sentence
+  ("...cannot be deleted.The following projects...").
+- Enumeration custom field update keeps options left out of the list (merge, not replace) and can give
+  two options the same position.
+- `GET /extended_api/<unknown id>.json` answers 404 without a body, like core.
+- The plugin registers `accept_api_auth` for create/update/destroy on the core admin controllers, so an
+  admin API key can also reach core's HTML-oriented create/update on the core paths (they redirect).
+  Admin only; pre-existing; left as is.
+- spec files that use Rails classes still depend on load order when run one by one
+  (e.g. controller_patches_spec alone); the full suite is green.
+
+## Open questions for Jan
+
+1. **Override values that cannot be stored: 422 (built) or ignore silently?** Built: 422 with one error
+   per bad value, nothing saved. Alternative: drop the bad value and save the rest. Recommendation: keep
+   422, an import that sends garbage should know; before it silently wrote NULL dates/dangling authors.
+2. **Should notify=false also suppress Redmine 7 webhooks?** Built: no, notify=false is about mail (core's
+   `notify` attribute), webhooks still fire, also for imports. Alternative: skip `Webhook.trigger` during a
+   notify=false request. Recommendation: leave webhooks on; integrations then see imported data too.
+   If bulk imports must stay invisible to integrations, add a separate parameter rather than overload notify.
+3. **Issue update without changes: 204 (built, like core) or the old 200 with an empty journal?**
+   Recommendation: 204; the old answer had no id and no date and described nothing.
+4. **Keep 5.1 compatibility?** The branch runs on 5.1-stable (tests green) and fixes a 500 for form encoded
+   POSTs there (`900d3f2`); it could be merged into `main` before the Redmine 7 upgrade.
+
+## Not testable here
+
+- Nothing needs external credentials: the plugin uses Redmine's own API authentication (Basic and API
+  key tested; OAuth tokens through Doorkeeper not tested, no OAuth app was set up). Mail was tested with
+  file delivery, not a real SMTP server.
 
 ## How to test
 
