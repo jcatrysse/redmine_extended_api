@@ -38,10 +38,23 @@ RSpec.describe RedmineExtendedApi::Patches::AttachmentsControllerPatch do
       'redmine_extended_api.original_script_name' => '',
       'redmine_extended_api.original_path_info' => '/extended_api/uploads.json'
     })
+    Time.zone = 'UTC'
+    allow(controller).to receive(:extended_api_user_exists?).and_return(true)
   end
 
   after do
     Thread.current[:redmine_extended_api_attachment_overrides] = nil
+  end
+
+  it 'refuses an override that cannot be stored before the upload' do
+    controller.params = { attachment: { author_id: 5, created_on: 'yesterday-ish' } }
+    allow(controller).to receive(:allow_extended_api_attachment_overrides?).and_return(true)
+    allow(controller).to receive(:extended_api_user_exists?).with(5).and_return(false)
+
+    expect(controller).to receive(:render_api_error_message).with(['Author is invalid', 'Created on is invalid'])
+    controller.upload
+    expect(controller.thread_snapshot).to be_nil
+    expect(Thread.current[:redmine_extended_api_attachment_overrides]).to be_nil
   end
 
   it 'wraps upload with override capture' do

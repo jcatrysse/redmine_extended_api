@@ -4,6 +4,9 @@ require 'bundler/setup'
 require 'rspec/core'
 require 'rspec/expectations'
 require 'rspec/mocks'
+require 'active_support'
+require 'active_support/time'
+require 'active_support/core_ext/object/blank'
 
 require_relative '../lib/redmine_extended_api'
 

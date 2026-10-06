@@ -10,6 +10,11 @@ RSpec.describe 'extended_api uploads overrides' do
     stub_const('User', Class.new do
       class << self
         attr_accessor :current
+
+        # every override user exists here
+        def where(*)
+          Struct.new(:exists?).new(true)
+        end
       end
 
       attr_reader :id
@@ -87,6 +92,8 @@ RSpec.describe 'extended_api uploads overrides' do
         :ok
       end
     end)
+
+    Time.zone = 'UTC'
   end
 
   it 'accepts attachment[author_id] and attachment[created_on] on uploads endpoint' do

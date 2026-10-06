@@ -18,12 +18,14 @@ module RedmineExtendedApi
 
       def create
         return super unless extended_api_request?
+        return if render_invalid_extended_api_overrides
 
         with_extended_api_issue_context { super }
       end
 
       def update
         return super unless extended_api_request?
+        return if render_invalid_extended_api_overrides
 
         with_extended_api_issue_context { super }
       end
@@ -77,6 +79,18 @@ module RedmineExtendedApi
         if disable_issue_timestamps && defined?(Issue) && Issue.respond_to?(:record_timestamps=)
           Issue.record_timestamps = previous_issue_record_timestamps
         end
+      end
+
+      # Refuses the request (422) when an admin sends an override that cannot be stored.
+      def render_invalid_extended_api_overrides
+        return false unless allow_extended_api_overrides?
+
+        errors = extended_api_override_errors(extract_issue_override_attributes) +
+                 extended_api_override_errors(extract_journal_override_attributes)
+        return false if errors.empty?
+
+        render_api_error_message(errors.uniq)
+        true
       end
 
       def allow_extended_api_overrides?

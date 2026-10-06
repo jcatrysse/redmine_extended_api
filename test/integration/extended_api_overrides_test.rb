@@ -141,4 +141,47 @@ class ExtendedApiOverridesTest < Redmine::ApiTest::Base
   ensure
     ActiveJob::Base.queue_adapter = original_adapter
   end
+
+  # Unparseable times were stored as NULL (issues, attachments) or raised (journals, and
+  # the Redmine 7 webhook payload); unknown users were stored as dangling ids.
+  def test_create_issue_with_an_invalid_override_is_refused
+    assert_no_difference 'Issue.count' do
+      post '/extended_api/issues.json',
+           params: {issue: {project_id: 1, tracker_id: 1, subject: 'Bad date', author_id: 999, created_on: 'not a date'}},
+           headers: credentials('admin')
+    end
+    assert_response :unprocessable_content
+    assert_equal ['Author is invalid', 'Created is invalid'], ActiveSupport::JSON.decode(response.body)['errors']
+  end
+
+  def test_update_issue_with_an_invalid_journal_override_is_refused
+    assert_no_difference 'Journal.count' do
+      put '/extended_api/issues/1.json',
+          params: {issue: {notes: 'bad journal date'}, journal: {user_id: 999, created_on: '2021-13-45'}},
+          headers: credentials('admin')
+    end
+    assert_response :unprocessable_content
+    assert_equal ['User is invalid', 'Created is invalid'], ActiveSupport::JSON.decode(response.body)['errors']
+  end
+
+  def test_upload_with_an_invalid_override_is_refused
+    set_tmp_attachments_directory
+    assert_no_difference 'Attachment.count' do
+      post '/extended_api/uploads.json?filename=bad.txt&attachment[created_on]=garbage',
+           params: 'content',
+           headers: {'CONTENT_TYPE' => 'application/octet-stream'}.merge(credentials('admin'))
+    end
+    assert_response :unprocessable_content
+    assert_equal ['Created is invalid'], ActiveSupport::JSON.decode(response.body)['errors']
+  end
+
+  def test_invalid_overrides_of_a_non_admin_are_ignored_as_before
+    post '/extended_api/issues.json',
+         params: {issue: {project_id: 1, tracker_id: 1, subject: 'Non admin', created_on: 'not a date', author_id: 999}},
+         headers: credentials('jsmith')
+    assert_response :created
+    issue = Issue.order(:id).last
+    assert_equal 2, issue.author_id
+    assert_not_nil issue.created_on
+  end
 end

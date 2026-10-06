@@ -89,6 +89,8 @@ RSpec.describe RedmineExtendedApi::Patches::IssuesControllerPatch do
                                   'redmine_extended_api.original_script_name' => '',
                                   'redmine_extended_api.original_path_info' => '/extended_api/issues.json'
                                 })
+    Time.zone = 'UTC'
+    allow(controller).to receive(:extended_api_user_exists?).and_return(true)
   end
 
   after do

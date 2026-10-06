@@ -3,6 +3,9 @@
 module RedmineExtendedApi
   module Patches
     module ApiHelpers
+      EXTENDED_API_TIME_OVERRIDE_KEYS = %i[created_on updated_on closed_on].freeze
+      EXTENDED_API_USER_OVERRIDE_KEYS = %i[author_id user_id updated_by_id].freeze
+
       def self.included(base)
         super
         base.helper_method(:extended_api_metadata) if base.respond_to?(:helper_method)
@@ -74,7 +77,7 @@ module RedmineExtendedApi
           # Not render_error: it answers API formats with an empty body, so the reason was lost.
           # This is core's render_api_errors with a status.
           format.api do
-            @error_messages = [message]
+            @error_messages = Array(message)
             render template: 'common/error_messages', format: [:api], status: status, layout: nil
           end
         end
@@ -122,6 +125,33 @@ module RedmineExtendedApi
           headers['X-Redmine-Extended-API'] = header_value
           resp.headers = headers if resp.respond_to?(:headers=)
         end
+      end
+
+      # Messages for override values that cannot be stored: a time that does not parse or a user
+      # id that is no user. They used to be saved as NULL or as a dangling id, which failed later
+      # in mails, webhooks and journals.
+      def extended_api_override_errors(overrides)
+        overrides.filter_map do |key, value|
+          next if value.blank?
+
+          # the overrides come from params, a hash with indifferent access and string keys
+          key = key.to_sym
+
+          if EXTENDED_API_TIME_OVERRIDE_KEYS.include?(key)
+            next if parse_extended_api_time(value)
+          elsif EXTENDED_API_USER_OVERRIDE_KEYS.include?(key)
+            next if extended_api_user_exists?(value)
+          else
+            next
+          end
+
+          label = I18n.t(:"field_#{key.to_s.delete_suffix('_id')}", default: key.to_s.humanize)
+          "#{label} #{I18n.t('activerecord.errors.messages.invalid', default: 'is invalid')}"
+        end
+      end
+
+      def extended_api_user_exists?(value)
+        value.to_s.match?(/\A\d+\z/) && User.where(id: value.to_i).exists?
       end
 
       def parse_extended_api_time(value)

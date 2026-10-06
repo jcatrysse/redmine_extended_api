@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative 'spec_helper'
+require 'action_controller'
 require_relative '../lib/redmine_extended_api/patches/api_helpers'
 require_relative '../lib/redmine_extended_api/patches/notification_suppression_patch'
 require_relative '../lib/redmine_extended_api/patches/issues_controller_patch'
@@ -128,6 +129,10 @@ RSpec.describe RedmineExtendedApi::Patches::IssuesControllerPatch do
 
     Issue.reset_notif_calls!
     Journal.reset_notif_calls!
+
+    Time.zone = 'UTC'
+    allow(controller).to receive(:extended_api_user_exists?).and_return(true)
+    allow(controller).to receive(:render_api_error_message)
   end
 
   after do
@@ -217,5 +222,39 @@ RSpec.describe RedmineExtendedApi::Patches::IssuesControllerPatch do
     expect(Journal.record_timestamps_calls).to be_empty
     expect(Thread.current[:redmine_extended_api_journal_overrides]).to be_nil
     expect(Thread.current[:redmine_extended_api_issue_overrides]).to be_nil
+  end
+
+  it 'refuses an override time that does not parse before anything is saved' do
+    controller.params = { issue: { subject: 'x', created_on: 'not a date' }, journal: { updated_on: '2020-13-45' } }
+
+    expect(controller).to receive(:render_api_error_message).with(['Created on is invalid', 'Updated on is invalid'])
+    expect(controller.create).to be_nil
+    expect(controller.thread_snapshot).to be_nil
+    expect(Issue.record_timestamps_calls).to be_empty
+  end
+
+  it 'refuses an override user that does not exist' do
+    controller.params = { issue: { author_id: 404 }, journal: { user_id: 'abc' } }
+    allow(controller).to receive(:extended_api_user_exists?).with(404).and_return(false)
+    allow(controller).to receive(:extended_api_user_exists?).with('abc').and_call_original
+
+    expect(controller).to receive(:render_api_error_message).with(['Author is invalid', 'User is invalid'])
+    expect(controller.update).to be_nil
+    expect(controller.thread_snapshot).to be_nil
+  end
+
+  it 'does not check the overrides of non-admin users, which are ignored anyway' do
+    User.current = non_admin_user
+    controller.params = { issue: { subject: 'x', created_on: 'not a date' } }
+
+    expect(controller).not_to receive(:render_api_error_message)
+    expect(controller.create).to eq(:base_create)
+  end
+
+  it 'checks overrides from params with string keys, as Rails gives them' do
+    controller.params = ActionController::Parameters.new(issue: { created_on: 'not a date' })
+
+    expect(controller).to receive(:render_api_error_message).with(['Created on is invalid'])
+    expect(controller.create).to be_nil
   end
 end
