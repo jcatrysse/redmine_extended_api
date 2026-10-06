@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 require_relative 'lib/redmine_extended_api'
 require_relative 'lib/redmine_extended_api/custom_fields/attribute_policy'
+require_relative 'lib/redmine_extended_api/mail_suppression_interceptor'
 require_relative 'lib/redmine_extended_api/patches/api_helpers'
 require_relative 'lib/redmine_extended_api/patches/attachments_controller_patch'
 require_relative 'lib/redmine_extended_api/patches/attachment_patch'
@@ -36,5 +37,6 @@ IssuesController.prepend RedmineExtendedApi::Patches::IssuesControllerPatch
 IssueStatusesController.prepend RedmineExtendedApi::Patches::IssueStatusesControllerPatch
 Journal.include RedmineExtendedApi::Patches::NotificationSuppressionPatch
 Journal.include RedmineExtendedApi::Patches::JournalPatch
+ActionMailer::Base.register_interceptor(RedmineExtendedApi::MailSuppressionInterceptor)
 RolesController.prepend RedmineExtendedApi::Patches::RolesControllerPatch
 TrackersController.prepend RedmineExtendedApi::Patches::TrackersControllerPatch

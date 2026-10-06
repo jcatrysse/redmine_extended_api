@@ -77,7 +77,8 @@ RSpec.describe RedmineExtendedApi::Patches::IssueRelationsControllerPatch do
   it 'suppresses relation notifications when notify=false on create' do
     controller.params = { relation: { issue_to_id: 2 }, notify: '0' }
 
-    expect(Mailer).to receive(:with_deliveries).with(false).and_yield
+    # thread-local suppression only; Mailer.with_deliveries switched mail off for every thread
+    expect(Mailer).not_to receive(:with_deliveries)
 
     expect(controller.create).to eq(:base_create)
     expect(IssueRelation.notif_calls).to eq(0)
@@ -86,7 +87,8 @@ RSpec.describe RedmineExtendedApi::Patches::IssueRelationsControllerPatch do
   it 'suppresses relation notifications when notify=false on destroy' do
     controller.params = { notify: false }
 
-    expect(Mailer).to receive(:with_deliveries).with(false).and_yield
+    # thread-local suppression only; Mailer.with_deliveries switched mail off for every thread
+    expect(Mailer).not_to receive(:with_deliveries)
 
     expect(controller.destroy).to eq(:base_destroy)
     expect(IssueRelation.notif_calls).to eq(0)

@@ -66,11 +66,7 @@ module RedmineExtendedApi
           Thread.current[:redmine_extended_api_suppress_notifications] = true
         end
 
-        if suppress_notifications && defined?(Mailer)
-          Mailer.with_deliveries(false) { yield }
-        else
-          yield
-        end
+        yield
 
       ensure
         Thread.current[:redmine_extended_api_issue_overrides] = previous_overrides

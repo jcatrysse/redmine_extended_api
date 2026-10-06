@@ -7,6 +7,18 @@ require File.expand_path('../../../../test/test_helper', __dir__)
 class ExtendedApiOverridesTest < Redmine::ApiTest::Base
   include ActiveJob::TestHelper
 
+  def setup
+    super
+    # config/configuration.yml may route mail elsewhere (files) for every environment
+    @delivery_method = ActionMailer::Base.delivery_method
+    ActionMailer::Base.delivery_method = :test
+  end
+
+  def teardown
+    ActionMailer::Base.delivery_method = @delivery_method
+    super
+  end
+
   def test_create_issue_as_admin_persists_author_and_timestamps
     assert_difference 'Issue.count' do
       post '/extended_api/issues.json?notify=false',
