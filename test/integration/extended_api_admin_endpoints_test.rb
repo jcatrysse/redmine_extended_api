@@ -56,4 +56,28 @@ class ExtendedApiAdminEndpointsTest < Redmine::ApiTest::Base
     assert_response :unprocessable_content
     assert_select 'errors error', text: I18n.t(:error_can_not_remove_role)
   end
+
+  # Core's before_action renders the HTML type picker without a valid type.
+  def test_create_custom_field_without_a_valid_type_is_refused_as_api_error
+    [nil, 'NoSuchCustomField'].each do |type|
+      assert_no_difference 'CustomField.count' do
+        post '/extended_api/custom_fields.json',
+             params: {type: type, custom_field: {name: 'No type', field_format: 'string'}}.compact,
+             headers: credentials('admin')
+      end
+      assert_response :unprocessable_content
+      assert_equal 'application/json', response.media_type
+      assert_equal ['Type is invalid'], ActiveSupport::JSON.decode(response.body)['errors']
+    end
+  end
+
+  def test_create_custom_field_with_a_type
+    assert_difference 'IssueCustomField.count' do
+      post '/extended_api/custom_fields.json',
+           params: {type: 'IssueCustomField', custom_field: {name: 'With type', field_format: 'string'}},
+           headers: credentials('admin')
+    end
+    assert_response :created
+    assert_equal 'With type', ActiveSupport::JSON.decode(response.body)['custom_field']['name']
+  end
 end
