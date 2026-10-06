@@ -4,6 +4,7 @@ require 'bundler/setup'
 require 'rspec/core'
 require 'rspec/expectations'
 require 'rspec/mocks'
+require 'logger' # ActiveSupport 6.1 (Redmine 5.1) needs it before itself
 require 'active_support'
 require 'active_support/time'
 require 'active_support/core_ext/object/blank'

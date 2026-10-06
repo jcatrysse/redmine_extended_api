@@ -11,7 +11,7 @@ class ExtendedApiAdminEndpointsTest < Redmine::ApiTest::Base
     assert_no_difference 'IssueStatus.count' do
       delete '/extended_api/issue_statuses/1.json', headers: credentials('admin')
     end
-    assert_response :unprocessable_content
+    assert_response 422
     json = ActiveSupport::JSON.decode(response.body)
     assert_equal ['Unable to delete issue status (This status is used by some issues)'], json['errors']
   end
@@ -40,10 +40,11 @@ class ExtendedApiAdminEndpointsTest < Redmine::ApiTest::Base
     assert_no_difference 'Tracker.count' do
       delete '/extended_api/trackers/1.json', headers: credentials('admin')
     end
-    assert_response :unprocessable_content
+    assert_response 422
     json = ActiveSupport::JSON.decode(response.body)
     assert_equal 1, json['errors'].size
-    assert_match(/eCookbook/, json['errors'].first)
+    # Redmine 7 names the projects (error_can_not_delete_tracker_html), 5.1 has no such key
+    assert_match(/eCookbook|Unable to delete tracker/, json['errors'].first)
     assert_no_match(/<|>/, json['errors'].first)
   end
 
@@ -53,7 +54,7 @@ class ExtendedApiAdminEndpointsTest < Redmine::ApiTest::Base
     assert_no_difference 'Role.count' do
       delete '/extended_api/roles/1.xml', headers: credentials('admin')
     end
-    assert_response :unprocessable_content
+    assert_response 422
     assert_select 'errors error', text: I18n.t(:error_can_not_remove_role)
   end
 
@@ -65,7 +66,7 @@ class ExtendedApiAdminEndpointsTest < Redmine::ApiTest::Base
              params: {type: type, custom_field: {name: 'No type', field_format: 'string'}}.compact,
              headers: credentials('admin')
       end
-      assert_response :unprocessable_content
+      assert_response 422
       assert_equal 'application/json', response.media_type
       assert_equal ['Type is invalid'], ActiveSupport::JSON.decode(response.body)['errors']
     end
