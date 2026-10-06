@@ -67,11 +67,16 @@ module RedmineExtendedApi
         end
       end
 
-      def render_api_error_message(message, status: :unprocessable_entity)
+      def render_api_error_message(message, status: 422)
         mark_extended_api_response(fallback: false)
 
         respond_to do |format|
-          format.api {render_error(message: message, status: status)}
+          # Not render_error: it answers API formats with an empty body, so the reason was lost.
+          # This is core's render_api_errors with a status.
+          format.api do
+            @error_messages = [message]
+            render template: 'common/error_messages', format: [:api], status: status, layout: nil
+          end
         end
       end
 
