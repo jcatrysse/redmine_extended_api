@@ -124,6 +124,8 @@ class ExtendedApiOverridesTest < Redmine::ApiTest::Base
   # Redmine 7 webhooks render the issue when the transaction commits, after the
   # overrides were written, so a hook sees the imported author and dates.
   def test_webhook_payload_of_created_issue_carries_the_overrides
+    skip 'webhooks are new in Redmine 7' unless defined?(Webhook)
+
     original_adapter = ActiveJob::Base.queue_adapter
     ActiveJob::Base.queue_adapter = :test
     WebhookEndpointValidator.class_eval { @blocked_hosts = nil }
@@ -151,7 +153,7 @@ class ExtendedApiOverridesTest < Redmine::ApiTest::Base
     assert_equal issue.author_id, payload.dig('data', 'issue', 'author', 'id')
     assert_equal issue.created_on.utc, Time.zone.parse(payload.dig('data', 'issue', 'created_on')).utc
   ensure
-    ActiveJob::Base.queue_adapter = original_adapter
+    ActiveJob::Base.queue_adapter = original_adapter if original_adapter
   end
 
   # Unparseable times were stored as NULL (issues, attachments) or raised (journals, and
@@ -162,7 +164,7 @@ class ExtendedApiOverridesTest < Redmine::ApiTest::Base
            params: {issue: {project_id: 1, tracker_id: 1, subject: 'Bad date', author_id: 999, created_on: 'not a date'}},
            headers: credentials('admin')
     end
-    assert_response :unprocessable_content
+    assert_response 422
     assert_equal ['Author is invalid', 'Created is invalid'], ActiveSupport::JSON.decode(response.body)['errors']
   end
 
@@ -172,7 +174,7 @@ class ExtendedApiOverridesTest < Redmine::ApiTest::Base
           params: {issue: {notes: 'bad journal date'}, journal: {user_id: 999, created_on: '2021-13-45'}},
           headers: credentials('admin')
     end
-    assert_response :unprocessable_content
+    assert_response 422
     assert_equal ['User is invalid', 'Created is invalid'], ActiveSupport::JSON.decode(response.body)['errors']
   end
 
@@ -183,7 +185,7 @@ class ExtendedApiOverridesTest < Redmine::ApiTest::Base
            params: 'content',
            headers: {'CONTENT_TYPE' => 'application/octet-stream'}.merge(credentials('admin'))
     end
-    assert_response :unprocessable_content
+    assert_response 422
     assert_equal ['Created is invalid'], ActiveSupport::JSON.decode(response.body)['errors']
   end
 
