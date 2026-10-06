@@ -155,7 +155,8 @@ RSpec.describe RedmineExtendedApi::Patches::IssuesControllerPatch do
       notify: '0'
     }
 
-    expect(Mailer).to receive(:with_deliveries).with(false).and_yield
+    # thread-local suppression only; Mailer.with_deliveries switched mail off for every thread
+    expect(Mailer).not_to receive(:with_deliveries)
 
     expect(controller.create).to eq(:base_create)
     expect(controller.thread_snapshot).to eq(author_id: 5, created_on: '2020-01-01', closed_on: '2020-03-03')
