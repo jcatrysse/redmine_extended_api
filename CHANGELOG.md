@@ -27,3 +27,14 @@
 * Added admin-only journal override support (user, updated_on and updated_by_id) when routed through the extended API.
 * Added admin-only attachment override support (author_id and created_on) when routed through the extended API.
 * Documented the new overrides in the README.
+
+## Redmine 7 migration (branch redmine70-migration)
+
+* Fixed: author_id/created_on/updated_on/closed_on overrides on issue create were silently lost on Rails 7.1+ (Redmine 7): update_columns added the stale lock_version to its WHERE.
+* Fixed: notify=false switched mail off for the whole process (Mailer.with_deliveries), dropping mail of other requests; it now only drops the mail of its own request.
+* Fixed: override values that cannot be stored (unparseable time, unknown user) are refused with 422; they were saved as NULL or failed with 500 (journals, Redmine 7 webhooks).
+* Fixed: refusals (tracker, role or custom field delete, issue status in use) answer 422 with the reason in errors instead of an empty body or a 500.
+* Fixed: a custom field create without a valid type answers 422 instead of 200 with HTML.
+* Fixed: an issue update without changes answers 204 like core instead of a journal without id.
+* Fixed: form encoded POSTs through /extended_api answered 500 on Redmine 5.1 (Rack 2).
+* Tested on Redmine 7.0-stable-GEOxyz (PostgreSQL, MariaDB) and 5.1-stable; integration tests against a real Redmine and end to end scenarios in test/e2e.
