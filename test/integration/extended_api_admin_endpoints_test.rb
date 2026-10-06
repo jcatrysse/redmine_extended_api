@@ -31,4 +31,29 @@ class ExtendedApiAdminEndpointsTest < Redmine::ApiTest::Base
     assert_response :forbidden
     assert IssueStatus.find_by(id: status.id)
   end
+
+  # render_error answers an API format with an empty body, so these refusals
+  # used to come back as a bare 422 without the reason.
+  def test_destroy_tracker_in_use_is_refused_with_the_reason
+    assert Issue.where(tracker_id: 1).exists?
+
+    assert_no_difference 'Tracker.count' do
+      delete '/extended_api/trackers/1.json', headers: credentials('admin')
+    end
+    assert_response :unprocessable_content
+    json = ActiveSupport::JSON.decode(response.body)
+    assert_equal 1, json['errors'].size
+    assert_match(/eCookbook/, json['errors'].first)
+    assert_no_match(/<|>/, json['errors'].first)
+  end
+
+  def test_destroy_role_in_use_is_refused_with_the_reason
+    assert Role.find(1).members.any?
+
+    assert_no_difference 'Role.count' do
+      delete '/extended_api/roles/1.xml', headers: credentials('admin')
+    end
+    assert_response :unprocessable_content
+    assert_select 'errors error', text: I18n.t(:error_can_not_remove_role)
+  end
 end
