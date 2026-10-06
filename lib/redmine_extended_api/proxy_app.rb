@@ -136,8 +136,10 @@ module RedmineExtendedApi
       env.delete('action_dispatch.routes')
       env.delete('rack.request.query_string')
       env.delete('rack.request.query_hash')
-      env.delete('rack.request.form_hash')
-      env.delete('rack.request.form_vars')
+      # The parsed form (rack.request.form_*) is kept: it depends on the body, not on the path.
+      # Dropping form_hash while Rack 2 still had form_input pointing at rack.input made a form
+      # encoded POST raise in Rack::MethodOverride (500 on Redmine 5.1), and Rack 3 cannot read
+      # rack.input a second time.
 
       env
     end
