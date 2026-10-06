@@ -76,8 +76,10 @@ fi
 
 if [ ! -f "$REDMINE_DIR/config/configuration.yml" ]; then
   mkdir -p "$REDMINE_DIR/tmp/mails"
+  # Only for the server's environment: under "default" it also applied to the test
+  # environment, whose mail then went to files instead of ActionMailer deliveries.
   cat > "$REDMINE_DIR/config/configuration.yml" <<YAML
-default:
+$RMP_SERVER_ENV:
   email_delivery:
     delivery_method: :file
     file_settings:
