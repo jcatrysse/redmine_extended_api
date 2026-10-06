@@ -49,7 +49,8 @@ const privIssue = (a.expect(await a.call('GET', '/extended_api/issues.json?proje
 for (const [path, label] of [[`/issues/${issue?.id}.json`, 'public project'], [`/issues/${privIssue?.id}.json`, 'private project']]) {
   const c = await a.call('PUT', path, { as: 'outsider', data: { issue: { notes: `outsider ${label}` } } });
   const x = await a.call('PATCH', '/extended_api' + path, { as: 'outsider', data: { issue: { notes: `outsider ${label}` }, journal: { user_id: uid('admin') } } });
-  a.check((c.status < 300) === (x.status < 300) && (label === 'public project' ? x.status === 200 : x.status === 403),
+  // the public project allows it with core's default roles alone; other plugins may refuse it, on both paths
+  a.check((c.status < 300) === (x.status < 300) && (label === 'public project' || x.status === 403),
     `outsider, ${label}: core ${c.status}, extended ${x.status}`);
   if (x.status === 200) a.check(x.json?.journal?.user?.id === uid('outsider'), 'outsider: journal override applied');
 }
