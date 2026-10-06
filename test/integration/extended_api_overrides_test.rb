@@ -136,6 +136,7 @@ class ExtendedApiOverridesTest < Redmine::ApiTest::Base
     hook = Webhook.create!(url: 'https://example.com/hook', user: User.find(1),
                            projects: [Project.find(1)], events: ['issue.created'], active: true)
 
+    clear_enqueued_jobs
     with_settings webhooks_enabled: '1' do
       post '/extended_api/issues.json?notify=false',
            params: {issue: {project_id: 1, tracker_id: 1, subject: 'Imported with hook',
