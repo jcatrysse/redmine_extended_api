@@ -1320,6 +1320,23 @@ RSpec.describe 'Controller patches' do
         end
       end
 
+      context 'when the status is still in use' do
+        before do
+          allow(issue_status).to receive(:destroy).and_raise(RuntimeError, 'This status is used by some issues')
+          allow(I18n).to receive(:t)
+            .with(:error_unable_delete_issue_status, value: 'This status is used by some issues')
+            .and_return('Unable to delete issue status (This status is used by some issues)')
+        end
+
+        it 'renders the reason as a validation error instead of raising' do
+          expect(issue_status.errors).to receive(:add)
+            .with(:base, 'Unable to delete issue status (This status is used by some issues)')
+          expect(controller).to receive(:render_api_validation_errors).with(issue_status)
+
+          controller.destroy
+        end
+      end
+
       context 'when the request is not an API request' do
         before do
           allow(controller).to receive(:api_request?).and_return(false)
