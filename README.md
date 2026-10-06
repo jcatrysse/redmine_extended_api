@@ -65,15 +65,16 @@ The rule is: prepend `/extended_api` to any Redmine REST API path (including nes
 
 The extended API keeps the native responses from Redmine's issue endpoints while adding a couple of quality-of-life options:
 
-- Suppress notifications when creating or updating issues by passing `notify=false` (or `send_notification=0`). The request is still fully validated, only the mail delivery is skipped.
+- Suppress notifications when creating or updating issues by passing `notify=false` (or `send_notification=0`). The request is still fully validated, only the mail delivery is skipped. Only the mail of that request is affected; mail of other users and requests is delivered as usual. Webhooks (Redmine 7) are still sent.
 - Suppress notifications when creating or deleting issue relations by passing `notify=false` (or `send_notification=0`) on relation endpoints. See the [core Redmine relations API](https://www.redmine.org/projects/redmine/wiki/Rest_issuerelations) for the base payloads.
 - Preserve history when migrating data by explicitly setting `author_id`, `created_on`, `updated_on`, or `closed_on` on issues. These overrides are only applied for admin users routed through `/extended_api`, and automatic timestamp updates are disabled for the request to keep the supplied values intact.
 - Preserve journal provenance when importing by supplying `journal[created_on]`,`journal[user_id]`, `journal[updated_on]`, or `journal[updated_by_id]` in extended issue requests. Admin-only overrides are applied to the generated journal entry while temporarily disabling journal timestamp updates to respect the provided values.
+- Override values that cannot be stored are refused with `422` and nothing is saved: a time that does not parse (`"Created is invalid"`) or a user id that does not exist (`"Author is invalid"`, `"User is invalid"`).
 - Successful issue updates that create a journal entry return the journal payload when routed through `/extended_api`, making it easy to confirm the resulting notes and metadata.
 
 ### Attachment-specific utilities
 
-- Preserve uploader history on imported files by supplying `author_id` and/or `created_on` in `/extended_api/attachments` requests. Overrides are limited to admin users and keep the provided timestamp intact by disabling automatic timestamp updates for the request.
+- Preserve uploader history on imported files by supplying `author_id` and/or `created_on` in `/extended_api/uploads` requests. Overrides are limited to admin users and keep the provided timestamp intact by disabling automatic timestamp updates for the request. Values that cannot be stored are refused with `422`, as for issues.
 
 #### Real-world examples for issues and journals
 
@@ -242,7 +243,7 @@ All paths require either `.json` or `.xml` and the usual authentication headers.
 |---------------------|-----------|--------------------------------------------|---------------------|---------------------------------------------------------------------------------|
 | List custom fields  | GET       | `/extended_api/custom_fields.{format}`     | Core (proxy)        | Returns every custom field with permitted attributes.                           |
 | Show custom field   | GET       | `/extended_api/custom_fields/:id.{format}` | Extended only (new) | Includes field format, visibility, possible values, trackers, etc.              |
-| Create custom field | POST      | `/extended_api/custom_fields.{format}`     | Extended only (new) | Provide the type (e.g. `IssueCustomField`) and attributes under `custom_field`. |
+| Create custom field | POST      | `/extended_api/custom_fields.{format}`     | Extended only (new) | Provide the type (e.g. `IssueCustomField`) and attributes under `custom_field`; without a valid type: `422`. |
 | Update custom field | PUT/PATCH | `/extended_api/custom_fields/:id.{format}` | Extended only (new) | Supports mass updates of trackers, roles, visibility, and plugin attributes.    |
 | Delete custom field | DELETE    | `/extended_api/custom_fields/:id.{format}` | Extended only (new) | Removes the field; follows the same validations as the UI.                      |
 
