@@ -196,4 +196,12 @@ class ExtendedApiOverridesTest < Redmine::ApiTest::Base
     assert_equal 2, issue.author_id
     assert_not_nil issue.created_on
   end
+
+  def test_update_without_changes_answers_like_core
+    assert_no_difference 'Journal.count' do
+      put '/extended_api/issues/1.json', params: {issue: {subject: Issue.find(1).subject}}, headers: credentials('admin')
+    end
+    assert_response :no_content
+    assert_empty response.body
+  end
 end
