@@ -96,8 +96,12 @@ module RedmineExtendedApi
         return if cols.empty?
 
         Thread.current[:redmine_extended_api_applying_issue_overrides] = true
-        update_columns(cols)
+        # Not update_columns: since Rails 7.1 it adds "lock_version = <in memory value>" to the
+        # WHERE, and on create the nested set callbacks have already bumped lock_version in the
+        # database, so the update hit no row and the overrides were silently lost.
+        self.class.where(id: id).update_all(cols)
         assign_attributes(cols)
+        clear_attribute_changes(cols.keys)
       ensure
         Thread.current[:redmine_extended_api_applying_issue_overrides] = nil
       end
