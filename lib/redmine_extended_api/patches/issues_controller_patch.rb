@@ -177,7 +177,9 @@ module RedmineExtendedApi
         return unless defined?(@issue) && @issue
 
         if @issue.respond_to?(:current_journal) && @issue.current_journal
-          return @issue.current_journal
+          # an update that changes nothing saves no journal: answer like core (204), not with
+          # an unsaved journal without id
+          return @issue.current_journal.persisted? ? @issue.current_journal : nil
         end
 
         return unless @issue.respond_to?(:journals)
