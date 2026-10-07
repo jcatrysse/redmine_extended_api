@@ -126,7 +126,8 @@ class ExtendedApiOverridesTest < Redmine::ApiTest::Base
   end
 
   # Redmine 7 webhooks render the issue when the transaction commits, after the
-  # overrides were written, so a hook sees the imported author and dates.
+  # overrides were written, so a hook sees the imported author and dates (without
+  # notify=false: that silences the webhooks too, see extended_api_webhooks_test.rb).
   def test_webhook_payload_of_created_issue_carries_the_overrides
     skip 'webhooks are new in Redmine 7' unless defined?(Webhook)
 
@@ -138,7 +139,7 @@ class ExtendedApiOverridesTest < Redmine::ApiTest::Base
 
     clear_enqueued_jobs
     with_settings webhooks_enabled: '1' do
-      post '/extended_api/issues.json?notify=false',
+      post '/extended_api/issues.json',
            params: {issue: {project_id: 1, tracker_id: 1, subject: 'Imported with hook',
                             author_id: 2, created_on: '2020-01-02T03:04:05Z'}},
            headers: credentials('admin')
