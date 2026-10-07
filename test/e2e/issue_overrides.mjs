@@ -3,8 +3,6 @@
 // core path, gets the normal values. The Redmine 7 webhooks see what is stored.
 // This is the function that silently lost the overrides on Redmine 7 before the
 // update_columns fix.
-import http from 'node:http';
-import os from 'node:os';
 import { e2e } from '../../.codex/e2e/lib.mjs';
 import api from './support/api.cjs';
 
@@ -13,38 +11,11 @@ const { client, setApiSettings } = api;
 const a = client(t);
 const stamp = Date.now() % 1000000;
 
-// a webhook receiver; core refuses loopback and link-local webhook URLs, so listen on
-// the first non-internal IPv4 address of this machine
-const hooks = [];
-const host = Object.values(os.networkInterfaces()).flat().find(i => i.family === 'IPv4' && !i.internal)?.address;
-const port = 4500 + (process.pid % 400);
-const server = http.createServer((req, res) => {
-  let body = '';
-  req.on('data', c => { body += c; });
-  req.on('end', () => { try { hooks.push(JSON.parse(body)); } catch { hooks.push({ raw: body }); } res.end('ok'); });
-});
-await new Promise(r => server.listen(port, host, r));
-async function hookFor(type, issueId, timeout = 15000) {
-  const until = Date.now() + timeout;
-  while (Date.now() < until) {
-    const h = hooks.find(x => x.type === type && x.data?.issue?.id === issueId);
-    if (h) return h;
-    await new Promise(r => setTimeout(r, 250));
-  }
-  return null;
-}
+const receiver = await api.webhookReceiver();
+const hookFor = receiver.hookFor;
 
 await setApiSettings(t, { rest: true, webhooks: true });
-await t.go('/webhooks/new');
-await t.page.fill('#webhook_url', `http://${host}:${port}/hook`);
-await t.page.check('#webhook_active');
-await t.page.check('[id="webhook_events_issue.created"]');
-await t.page.check('[id="webhook_events_issue.updated"]');
-await t.page.locator('#webhook_project_ids label', { hasText: 'E2E project' }).locator('input').check();
-await t.page.click('#content input[type=submit]');
-await t.settle();
-t.check('create webhook');
-a.check(await t.page.locator('td', { hasText: `${host}:${port}` }).count() > 0, 'webhook not saved (URL refused?)');
+await api.addWebhook(t, receiver.url);
 await t.shot('webhook', 'A Redmine 7 webhook for issue created/updated in e2e-project, pointing at a receiver in the test');
 
 const users = a.expect(await a.call('GET', '/extended_api/users.json?limit=100'), 200).json?.users || [];
@@ -53,7 +24,8 @@ const statuses = a.expect(await a.call('GET', '/extended_api/issue_statuses.json
 const closed = statuses.find(s => s.is_closed);
 
 // admin, extended path: the overrides are stored
-const imported = a.expect(await a.call('POST', '/extended_api/issues.json?notify=false', {
+// without notify=false: that would silence the webhooks too (see webhooks.mjs)
+const imported = a.expect(await a.call('POST', '/extended_api/issues.json', {
   data: { issue: { project_id: 'e2e-project', tracker_id: 1, subject: `E2E imported ${stamp}`, author_id: uid('manager'),
     created_on: '2020-01-02T03:04:05Z', updated_on: '2020-01-03T03:04:05Z' } },
 }), 201);
@@ -75,7 +47,7 @@ await t.page.locator('.author a[title]').last().hover().catch(() => {});
 await t.shot('admin-create-page', 'The imported issue: "Added by Manager E2E" years ago (created 2020-01-02), not by the admin who posted it');
 
 // update with updated_on / closed_on
-const closing = a.expect(await a.call('PUT', `/extended_api/issues/${id}.json?notify=false`, {
+const closing = a.expect(await a.call('PUT', `/extended_api/issues/${id}.json`, {
   data: { issue: { status_id: closed?.id, notes: 'Closed by the import', updated_on: '2021-05-06T07:08:09Z', closed_on: '2021-05-06T07:08:00Z' } },
 }), 200);
 a.check(closing.json?.journal?.notes === 'Closed by the import', 'admin update: no journal payload in the answer');
@@ -133,5 +105,5 @@ a.expect(await a.call('POST', '/extended_api/issues.json', { data: { issue: { pr
 a.expect(await a.call('PUT', '/extended_api/issues/999999.json', { data: { issue: { updated_on: '2021-01-01T00:00:00Z' } } }), 404, 'unknown issue');
 await a.show('refused', 'Outsider in the private project is refused as on the core path; an unparseable date or unknown author is refused (422, nothing saved); blank subject 422; unknown issue 404');
 
-server.close();
+receiver.close();
 await t.done();

@@ -103,4 +103,58 @@ async function setApiSettings(t, { rest = true, webhooks } = {}) {
   }
 }
 
-module.exports = { client, setApiSettings, basic };
+// A webhook receiver for Redmine 7 webhooks. Core refuses loopback and link-local webhook
+// URLs, so it listens on the first non-internal IPv4 address of this machine.
+async function webhookReceiver() {
+  const http = require('node:http');
+  const os = require('node:os');
+  const hooks = [];
+  const host = Object.values(os.networkInterfaces()).flat().find(i => i.family === 'IPv4' && !i.internal)?.address;
+  const port = 4500 + (process.pid % 400);
+  const server = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', c => { body += c; });
+    req.on('end', () => { try { hooks.push(JSON.parse(body)); } catch { hooks.push({ raw: body }); } res.end('ok'); });
+  });
+  await new Promise(r => server.listen(port, host, r));
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  return {
+    url: `http://${host}:${port}/hook`,
+    hooks,
+    // the first payload of that type for that issue, or null after the timeout
+    async hookFor(type, issueId, timeout = 15000) {
+      const until = Date.now() + timeout;
+      while (Date.now() < until) {
+        const h = hooks.find(x => x.type === type && x.data?.issue?.id === issueId);
+        if (h) return h;
+        await wait(250);
+      }
+      return null;
+    },
+    // every payload for that issue, after giving the async job adapter time to deliver
+    async hooksFor(issueId, settle = 4000) {
+      await wait(settle);
+      return hooks.filter(x => x.data?.issue?.id === issueId).map(x => x.type);
+    },
+    close: () => server.close(),
+  };
+}
+
+// Adds an active webhook for issue created/updated in e2e-project through the form, as the
+// user logged in now (admin), and checks it was saved.
+async function addWebhook(t, url) {
+  await t.go('/webhooks/new');
+  await t.page.fill('#webhook_url', url);
+  await t.page.check('#webhook_active');
+  await t.page.check('[id="webhook_events_issue.created"]');
+  await t.page.check('[id="webhook_events_issue.updated"]');
+  await t.page.locator('#webhook_project_ids label', { hasText: 'E2E project' }).locator('input').check();
+  await t.page.click('#content input[type=submit]');
+  await t.settle();
+  t.check('create webhook');
+  if (!(await t.page.locator('td', { hasText: url.replace(/^http:\/\//, '').replace(/\/hook$/, '') }).count())) {
+    t.problems.push('webhook not saved (URL refused?)');
+  }
+}
+
+module.exports = { client, setApiSettings, basic, webhookReceiver, addWebhook };
