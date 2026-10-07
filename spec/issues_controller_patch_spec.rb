@@ -33,7 +33,7 @@ RSpec.describe RedmineExtendedApi::Patches::IssuesControllerPatch do
         @journal_snapshot = Thread.current[:redmine_extended_api_journal_overrides]
 
         # Simuleer hoe Redmine een notificatie triggert
-        Issue.new.send_notification
+        Issue.new.send(:send_notification)
 
         :base_create
       end
@@ -43,7 +43,7 @@ RSpec.describe RedmineExtendedApi::Patches::IssuesControllerPatch do
         @journal_snapshot = Thread.current[:redmine_extended_api_journal_overrides]
 
         # Simuleer notificatie op journal (notes)
-        Journal.new.send_notification
+        Journal.new.send(:send_notification)
 
         :base_update
       end
@@ -119,8 +119,8 @@ RSpec.describe RedmineExtendedApi::Patches::IssuesControllerPatch do
       end
     end)
 
-    Issue.include RedmineExtendedApi::Patches::NotificationSuppressionPatch
-    Journal.include RedmineExtendedApi::Patches::NotificationSuppressionPatch
+    Issue.prepend RedmineExtendedApi::Patches::NotificationSuppressionPatch
+    Journal.prepend RedmineExtendedApi::Patches::NotificationSuppressionPatch
 
     controller.request = double('Request', env: {
       'redmine_extended_api.original_script_name' => '',
