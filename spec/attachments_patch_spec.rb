@@ -135,7 +135,7 @@ RSpec.describe RedmineExtendedApi::Patches::AttachmentPatch do
       def update_columns_calls
         @update_columns_calls ||= []
       end
-    end.tap { |klass| klass.include described_class }
+    end.tap { |klass| klass.prepend described_class }
   end
 
   let(:attachment) { attachment_class.new }

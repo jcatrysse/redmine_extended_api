@@ -26,16 +26,16 @@ Redmine::Plugin.register :redmine_extended_api do
   requires_redmine version_or_higher: '5.0'
 end
 
-Attachment.include RedmineExtendedApi::Patches::AttachmentPatch
+Attachment.prepend RedmineExtendedApi::Patches::AttachmentPatch
 AttachmentsController.prepend RedmineExtendedApi::Patches::AttachmentsControllerPatch
 CustomFieldsController.prepend RedmineExtendedApi::Patches::CustomFieldsControllerPatch
 EnumerationsController.prepend RedmineExtendedApi::Patches::EnumerationsControllerPatch
-Issue.include RedmineExtendedApi::Patches::IssuePatch
-Issue.include RedmineExtendedApi::Patches::NotificationSuppressionPatch
+Issue.prepend RedmineExtendedApi::Patches::IssuePatch
+Issue.prepend RedmineExtendedApi::Patches::NotificationSuppressionPatch
 IssueRelationsController.prepend RedmineExtendedApi::Patches::IssueRelationsControllerPatch
 IssuesController.prepend RedmineExtendedApi::Patches::IssuesControllerPatch
 IssueStatusesController.prepend RedmineExtendedApi::Patches::IssueStatusesControllerPatch
-Journal.include RedmineExtendedApi::Patches::NotificationSuppressionPatch
+Journal.prepend RedmineExtendedApi::Patches::NotificationSuppressionPatch
 Journal.include RedmineExtendedApi::Patches::JournalPatch
 ActionMailer::Base.register_interceptor(RedmineExtendedApi::MailSuppressionInterceptor)
 RolesController.prepend RedmineExtendedApi::Patches::RolesControllerPatch

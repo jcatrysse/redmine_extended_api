@@ -67,7 +67,7 @@ RSpec.describe RedmineExtendedApi::Patches::IssuePatch do
       end
 
       attr_reader :cleared_attribute_changes
-    end.tap { |klass| klass.include described_class }
+    end.tap { |klass| klass.prepend described_class }
   end
 
   let(:issue) { issue_class.new }
@@ -202,5 +202,62 @@ RSpec.describe RedmineExtendedApi::Patches::IssuePatch do
     issue.send(:apply_extended_api_issue_overrides_after_save)
 
     expect(issue_class.update_all_calls).to be_empty
+  end
+
+  # Other plugins (redmine_itil_priority) patch Issue#safe_attributes= too. With the former
+  # alias_method chain, a module prepended before ours made safe_attributes= call itself.
+  it 'works next to another plugin that prepends safe_attributes= and init_journal first' do
+    other_plugin = Module.new do
+      def safe_attributes=(attrs, user = nil)
+        (@other_calls ||= []) << :safe_attributes
+        super
+      end
+
+      def init_journal(user, notes = '')
+        (@other_calls ||= []) << :init_journal
+        super
+      end
+
+      def other_calls
+        @other_calls
+      end
+    end
+    klass = Class.new(issue_class.superclass == Object ? Object : issue_class.superclass)
+    base = Class.new do
+      attr_reader :assigned_attributes, :safe_attributes_payload, :current_journal
+
+      def self.class_attribute(name, **)
+        singleton_class.class_eval { attr_accessor name }
+      end
+
+      def self.after_save(_callback = nil); end
+
+      def safe_attributes=(attrs, _user = nil)
+        @safe_attributes_payload = attrs
+      end
+
+      def init_journal(_user, _notes = '')
+        @current_journal = Journal.new
+      end
+
+      def assign_attributes(attrs)
+        (@assigned_attributes ||= {}).merge!(attrs)
+      end
+    end
+    base.prepend(other_plugin)
+    base.prepend(described_class)
+    User.current = admin_user
+    Thread.current[:redmine_extended_api_issue_overrides] = { author_id: 3 }
+    Thread.current[:redmine_extended_api_journal_overrides] = { user_id: 9 }
+
+    issue = base.new
+    expect { issue.safe_attributes = { subject: 'New' } }.not_to raise_error
+    expect { issue.init_journal(admin_user, 'note') }.not_to raise_error
+
+    expect(issue.safe_attributes_payload).to eq(subject: 'New')
+    expect(issue.assigned_attributes).to eq(author_id: 3)
+    expect(issue.current_journal.attributes).to eq(user_id: 9)
+    expect(issue.other_calls).to eq(%i[safe_attributes init_journal])
+    expect(klass).to be_a(Class)
   end
 end

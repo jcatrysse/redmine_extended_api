@@ -177,7 +177,7 @@ RSpec.describe RedmineExtendedApi::Patches::IssuePatch do
       def safe_attributes=(attrs, user = nil)
         @safe_attributes_payload = attrs
       end
-      end.tap { |klass| klass.include described_class }
+      end.tap { |klass| klass.prepend described_class }
     end
 
   let(:issue) { issue_class.new }

@@ -25,12 +25,12 @@ RSpec.describe RedmineExtendedApi::Patches::IssueRelationsControllerPatch do
       end
 
       def create
-        IssueRelation.new.send_notification
+        IssueRelation.new.send(:send_notification)
         :base_create
       end
 
       def destroy
-        IssueRelation.new.send_notification
+        IssueRelation.new.send(:send_notification)
         :base_destroy
       end
     end.tap { |klass| klass.prepend described_class }
@@ -59,7 +59,7 @@ RSpec.describe RedmineExtendedApi::Patches::IssueRelationsControllerPatch do
       end
     end)
 
-    IssueRelation.include RedmineExtendedApi::Patches::NotificationSuppressionPatch
+    IssueRelation.prepend RedmineExtendedApi::Patches::NotificationSuppressionPatch
 
     controller.request = double('Request', env: {
       'redmine_extended_api.original_script_name' => '',
