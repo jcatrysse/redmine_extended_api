@@ -4,7 +4,7 @@ Start a Claude Code (or Codex) session on this repository, branch `redmine70-mig
 
 > Read CLAUDE.md and docs/REDMINE7-MIGRATION.md, then carry out the Redmine 7 migration of this
 > plugin as described there, on branch redmine70-migration. That includes the plugin's tests on
-> PostgreSQL and MariaDB, every function exercised end to end on a real running Redmine in a
+> PostgreSQL, every function exercised end to end on a real running Redmine in a
 > browser (with and without permissions, failure paths included) with screenshots you looked at,
 > and an OpenAI review of the diff when OPENAI_API_KEY is set. Report to me in Dutch at the end.
 
@@ -22,14 +22,14 @@ what is left. Written 2026-10-06 from a measured analysis (report at the bottom)
 | Upstream sync | GEEN UPSTREAM |
 | After sync | n.v.t. |
 | Complexity (1 trivial .. 5 rewrite) | 2 |
-| Measured on | Redmine 7.0.1 (7.0-stable-GEOxyz + latest 7.0-stable), Rails 8.1.3.1, Ruby 3.3.6, PostgreSQL 16 and MariaDB 10.11 |
+| Measured on | Redmine 7.0.1 (7.0-stable-GEOxyz + latest 7.0-stable), Rails 8.1.3.1, Ruby 3.3.6, PostgreSQL 16 (MariaDB 10.11 until 2026-10-06) |
 | Branch head when this file was written | `fed0232` |
-| Migration session finished | 2026-10-06, all work list items done, see "Results" |
+| Migration session finished | 2026-10-06; Jan's decisions of 2026-10-07 built the same week, see "Decided by Jan" and "Results" |
 
 ## Already on this branch
 
 All runs on 7.0-stable-GEOxyz (Redmine 7.0.1, Rails 8.1.3.1, Ruby 3.3.6) unless said otherwise. Every fix
-has a test that fails without it; all of them also run on 5.1-stable.
+has a test that fails without it. (Until 2026-10-07 they were also run on 5.1-stable; that is no longer required.)
 
 | commit | what | found by |
 |---|---|---|
@@ -44,6 +44,10 @@ has a test that fails without it; all of them also run on 5.1-stable.
 | `900d3f2` | Proxy dropped the parsed form but left `rack.request.form_input`: every form encoded POST/PUT through /extended_api was a 500 on Redmine 5.1 (Rack 2). JSON was fine. | tests on 5.1 |
 | `1df0d59`, `7d3dee7` | Test kit: PostgreSQL provisioning as root; file mail delivery only for the server env (it leaked into the test env and made "no mail" tests pass vacuously). | setup |
 | `c49144c`, `b79769a`, `bf7bc7c` | Tests run on 5.1 too; tolerate plugins that widen core permissions (redmine_editauthor); review fix. | 5.1 run, together run, OpenAI review |
+| `894db78` | Issue, Journal and Attachment patched with `prepend` instead of `alias_method` (Jan's general decision; the old send_notification chain recursed next to redmine_stealth). | decision 2026-10-07 |
+| `2987761` | notify=false / send_notification=0 also silences the Redmine 7 webhooks of the request (decision q2). | decision 2026-10-07 |
+| `d6013b3` | requires_redmine 7.0 (init.rb patches Webhook); 5.1-only test paths removed. | decision 2026-10-07 |
+| `fbe490a` | e2e scenario `webhooks.mjs`; final e2e run, 82 screenshots. | |
 | `4c7729a`, `22c630d` | End to end scenarios (test/e2e) and screenshots (docs/e2e). | |
 
 ## Work list for the migration session
@@ -61,7 +65,8 @@ In this order: things that break, security, the GEOxyz changes, the open items, 
 
 **Checks**
 
-4. Run the plugin's whole test suite on Redmine 7.0-stable-GEOxyz with PostgreSQL AND MariaDB, and once on 5.1-stable if the branch is meant to stay 5.1-compatible. **DONE**, numbers under "Results".
+4. Run the plugin's whole test suite on Redmine 7.0-stable-GEOxyz with PostgreSQL (MariaDB and 5.1 no longer required, decision 2026-10-07). **DONE**, numbers under "Results".
+7. Jan's decisions of 2026-10-07 (prepend, webhooks with notify=false, Redmine 7 only). **DONE**, see "Decided by Jan".
 5. Check Redmine 7 webhooks against this plugin (see "Rules"), and note the result here even if nothing is needed. **DONE**: the issue payload is rendered in `after_*_commit`, after the plugin's `after_save` wrote the overrides, so `issue.created`/`issue.updated` carry the imported author and dates, equal to the database (integration test + real webhook received in the e2e run, screenshot `issue-overrides-webhook-payloads`). An unparseable override date used to make the webhook payload raise (500 after commit): fixed by `f175456`. notify=false does not suppress webhooks (mail only): see open question 2.
 6. Verify every feature of the plugin by hand on a running Redmine 7 (screenshots). **DONE**, see "Inventory of functions".
 
@@ -73,7 +78,9 @@ Own plugin: all of it is GEOxyz code, so there is nothing to re-apply. While mig
 
 Actions the person doing the upgrade must take, or know about, for this plugin:
 
-- No migrations, no settings, no files. Deploy the branch and restart.
+- No migrations, no settings, no files. Deploy the branch and restart. The plugin now requires Redmine 7.0.
+- notify=false / send_notification=0 on /extended_api now also suppresses the Redmine 7 webhooks of that
+  request (decision q2): systems fed by webhooks do not see imports made that way.
 - Behaviour changes API clients may notice (all on `/extended_api`, all fixes): an admin override with a
   value that cannot be stored now answers 422 (`"Created is invalid"`, `"Author is invalid"`) instead of
   saving NULL/dangling data; refused deletes now carry the reason in `errors`; a custom field create
@@ -83,7 +90,21 @@ Actions the person doing the upgrade must take, or know about, for this plugin:
   author_id/user_id has no user.
 - REST API stays required (Administration > Settings > **Integrations** on Redmine 7, the tab was "API").
 
-## Results (2026-10-06)
+## Results
+
+After Jan's decisions (2026-10-07, PostgreSQL 16.15):
+
+| run | result |
+|---|---|
+| tests, 7.0-stable-GEOxyz, alone | minitest 31 runs, 123 assertions, 0 failures; rspec 161 examples, 0 failures |
+| tests, with 35 other GEOxyz plugins (all public jcatrysse plugins, redmine70-migration branches) | minitest 31 runs, 122 assertions, 0 failures; rspec 161 examples, 0 failures |
+| e2e, alone, production mode | smoke + core + 12 scenarios, 82 screenshots, 0 problems (`docs/e2e/`) |
+| e2e, with the 35 plugins | issue list and issue page 200. Project > Settings 500: `super: no superclass method project_settings_tabs`, in the ProjectsHelper chain of redmine_mail_digest (`project_settings_tabs_with_issue_digest`, alias_method), redmine_itil_priority, redmine_ai_summary and others; this plugin does not patch ProjectsHelper. Our scenarios: differences only from other plugins (redmine_editauthor sets author_id, redmine_view_issue_description refuses reporter); the webhook checks of the old issue-overrides scenario failed there because it imported with notify=false, which now silences webhooks by decision, fixed in the scenario. |
+| OpenAI review of the new commits | `docs/reviews/openai-2026-10-07-fbe490a.md`: no findings |
+| own review of the new commits | prepend keeps behaviour and visibility (send_notification private like core); the webhook skip only acts while the request's thread-local flag is set, which ends in the controller's ensure; core path unchanged. No findings. |
+
+Before (2026-10-06):
+
 
 | run | result |
 |---|---|
@@ -117,14 +138,15 @@ exchange and the Redmine page that shows the result.
 | Attachment overrides author_id/created_on on `/extended_api/uploads` | admin API | `attachment_overrides.mjs` | attachment-overrides-admin, -issue-page, -ignored, -refused, -issue-page-member |
 | notify=false / send_notification=0 on issues and relations | any API user | `notifications.mjs` | notifications-calls, -mail-count, -quiet-issue |
 | Issue relations create/delete (core permissions, notify=false) | members with manage_issue_relations | `relations.mjs` | relations-create, -issue-page, -refused, -delete, -issue-page-after |
+| notify=false / send_notification=0 silence the Redmine 7 webhooks of the request (decision q2) | any API user; core path untouched | `webhooks.mjs` | webhooks-webhook, -calls, -received, -quiet-issue |
 | Show routes only under `/extended_api` (core `/trackers/1.json` etc. 404) | API | in the scenarios above and `smoke.mjs` | smoke-13..15, the -refused screenshots |
 
 Users per scenario: admin (everything), manager (all project permissions, not admin: admin endpoints
 403, overrides ignored), reporter (core Reporter role: 403 where core refuses), outsider (no membership:
-private project refused), anonymous (401). "Before" pictures on 5.1 were not made: the plugin has no
-layout, and the behaviour differences are shown by the tests that fail without each fix.
+private project refused), anonymous (401). No "before" pictures on 5.1: the plugin has no layout, the
+behaviour differences are shown by the tests that fail without each fix, and 5.1 is out of scope.
 
-## Observations not fixed (minor, behaviour as on 5.1)
+## Observations not fixed (minor, pre-existing)
 
 - An imported journal with only `created_on` gets `updated_on` = now, so Redmine shows it as "Edited"
   (screenshot journal-overrides-history). Sending `updated_on` too avoids it.
@@ -139,19 +161,40 @@ layout, and the behaviour differences are shown by the tests that fail without e
 - spec files that use Rails classes still depend on load order when run one by one
   (e.g. controller_patches_spec alone); the full suite is green.
 
+## Decided by Jan
+
+Recorded 2026-10-07 from `docs/DECISIONS-2026-10-07.md` (Jan's answers in the coordinating session);
+notes verbatim. Final.
+
+General, for every GEOxyz plugin (2026-10-07):
+- GEOxyz goes straight to Redmine 7: no backports to 5.1, nothing is cherry-picked to `main`;
+  `redmine70-migration` goes live with Redmine 7. 5.1 compatibility is no longer required and no code
+  path exists only for 5.1. Done here: `d6013b3` (requires_redmine 7.0, 5.1-only test paths removed).
+- Production runs PostgreSQL 16 only; tests and e2e run on PostgreSQL. MariaDB runs are no longer
+  required (the earlier MariaDB results below are kept as history).
+- deface without a version constraint: n.v.t., this plugin does not use deface.
+- Core methods other plugins also patch are patched with `prepend`, never `alias_method`. Done:
+  `894db78` (Issue#safe_attributes=, Issue#init_journal, Attachment#safe_attributes=,
+  Issue/Journal#send_notification; redmine_stealth prepends send_notification, which made the old
+  chain recurse). With 35 other GEOxyz plugins installed: issue list and issue page 200; Project >
+  Settings 500, but not from this plugin (see "Together").
+- GitHub Actions stay manual only (`workflow_dispatch`): unchanged.
+
+For this plugin:
+1. **redmine_extended_api-q1**, invalid date or unknown user in an import. Jan chose A: "Weigeren met een
+   foutmelding (422)" (Een import die foute gegevens stuurt, merkt dat meteen, en er komen geen kapotte
+   rijen meer in de database.). Already built in `f175456`; kept.
+2. **redmine_extended_api-q2**, should notify=false also silence webhooks? Jan chose B: "Ook webhooks
+   stilleggen" (Imports blijven onzichtbaar voor gekoppelde systemen, die daardoor kunnen afwijken van
+   Redmine.). Built in `2987761` (Webhook.trigger prepended, skipped while the request's suppression
+   flag is set), test `extended_api_webhooks_test.rb`, e2e `webhooks.mjs`.
+3. **redmine_extended_api-q3**, issue update without changes. Jan chose A: "204, zoals Redmine zelf (zo
+   laten)" (Gelijk aan de gewone Redmine-API; het oude antwoord bevatte niets bruikbaars.). Already built
+   in `6704885`; kept.
+
 ## Open questions for Jan
 
-1. **Override values that cannot be stored: 422 (built) or ignore silently?** Built: 422 with one error
-   per bad value, nothing saved. Alternative: drop the bad value and save the rest. Recommendation: keep
-   422, an import that sends garbage should know; before it silently wrote NULL dates/dangling authors.
-2. **Should notify=false also suppress Redmine 7 webhooks?** Built: no, notify=false is about mail (core's
-   `notify` attribute), webhooks still fire, also for imports. Alternative: skip `Webhook.trigger` during a
-   notify=false request. Recommendation: leave webhooks on; integrations then see imported data too.
-   If bulk imports must stay invisible to integrations, add a separate parameter rather than overload notify.
-3. **Issue update without changes: 204 (built, like core) or the old 200 with an empty journal?**
-   Recommendation: 204; the old answer had no id and no date and described nothing.
-4. **Keep 5.1 compatibility?** The branch runs on 5.1-stable (tests green) and fixes a 500 for form encoded
-   POSTs there (`900d3f2`); it could be merged into `main` before the Redmine 7 upgrade.
+- None.
 
 ## Not testable here
 
@@ -190,7 +233,7 @@ results quoted in the analysis come from it.
 1. **Start**: `git fetch && git checkout redmine70-migration && git pull`. Read this whole file,
    including the analysis report at the bottom. Do not reopen decisions recorded here.
 2. **Baseline, before you change anything**:
-   - the plugin's tests on Redmine 7.0-stable-GEOxyz with PostgreSQL and with MariaDB;
+   - the plugin's tests on Redmine 7.0-stable-GEOxyz with PostgreSQL;
    - a real running Redmine with this plugin (`./.codex/start_server.sh`) and the browser run
      (`./.codex/e2e.sh`: smoke over every page the plugin adds, plus the core issue flows).
    Write the numbers here. Something already broken now is a finding, not your regression.
@@ -202,9 +245,8 @@ results quoted in the analysis come from it.
 4. **GEOxyz changes**: go through the table above, one item at a time. Each kept or re-made change
    is its own commit with a test that proves it. Record the verdict in the table.
 5. **Work list**: then the numbered list, in order. One concern per commit.
-6. **Portability**: everything must run on Redmine's supported databases (PostgreSQL,
-   MySQL/MariaDB; SQLite where the plugin already supports it). Migrations must be reversible and
-   are run down and up on PostgreSQL and MariaDB.
+6. **Portability**: PostgreSQL is what GEOxyz runs (decision 2026-10-07); keep SQL portable where it
+   costs nothing. Migrations must be reversible and are run down and up on PostgreSQL.
 7. **Together**: run with the other GEOxyz plugins installed (the migration kit's harness, or
    `RMP_EXTRA_PLUGINS`). A failure that only appears in combination is a finding to record here.
 8. **End to end, visually, every function**: on the real Redmine from `start_server.sh`
@@ -223,7 +265,6 @@ results quoted in the analysis come from it.
      reads them; API through `t.page.request`) and record command and result.
    - Before pictures where behaviour or layout changes: the branch GEOxyz runs today, on
      Redmine 5.1, same scenarios, `RMP_E2E_OUT=docs/e2e/before`.
-   - Run the whole e2e set once on MariaDB as well (`RMP_DB=mariadb`, then `start_server.sh --reset`).
 9. **Independent review**: first your own, adversarial: re-read the whole diff as if someone
    else wrote it and you are paid to reject it. Then, **when `OPENAI_API_KEY` is set in the
    session**, `./.codex/openai_review.sh`: it sends the diff of this branch to an OpenAI model
@@ -268,8 +309,11 @@ results quoted in the analysis come from it.
   (on by default: `t.sudo()` in a scenario). The breaker list is in the migration kit's CHECKLIST.md.
 - **Locales**: keep the locales the plugin ships in sync; translate a new key by matching the
   closest existing key in the same file, not from scratch; do not add new languages.
-- **5.1 compatibility**: prefer fixes that also run on Redmine 5.1 so they can be merged early;
-  say so when a fix cannot.
+- **Redmine 7 only** (decision of Jan, 2026-10-07): no 5.1 compatibility, no backports, no code paths
+  that exist only for 5.1.
+- **PostgreSQL** (decision of Jan, 2026-10-07): tests and e2e on PostgreSQL 16; keep SQL portable where it
+  costs nothing; a MariaDB-only problem is a note, not a blocker.
+- **prepend, not alias_method** (decision of Jan, 2026-10-07) for core methods other plugins also patch.
 - **Git**: work on `redmine70-migration` only; never push to the default branch; never force-push
   a branch someone else uses. Descriptive commit messages (what and why). Push after every
   commit, together with the updated status in this file: a cloud session can stop at a usage
@@ -280,7 +324,7 @@ results quoted in the analysis come from it.
 ## Definition of done
 
 - All items of the work list are done or explicitly deferred with a reason, in this file.
-- The plugin's tests are green on Redmine 7.0-stable-GEOxyz with PostgreSQL and MariaDB
+- The plugin's tests are green on Redmine 7.0-stable-GEOxyz with PostgreSQL
   (numbers in this file); boot, production-like eager load, migrations up/down OK.
 - Every function in the inventory exercised end to end on a real running Redmine, with and
   without permissions and on its failure paths; `./.codex/e2e.sh` green; screenshots looked at,
