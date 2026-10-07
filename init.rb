@@ -15,6 +15,7 @@ require_relative 'lib/redmine_extended_api/patches/journal_patch'
 require_relative 'lib/redmine_extended_api/patches/notification_suppression_patch'
 require_relative 'lib/redmine_extended_api/patches/roles_controller_patch'
 require_relative 'lib/redmine_extended_api/patches/trackers_controller_patch'
+require_relative 'lib/redmine_extended_api/patches/webhook_patch'
 require_relative 'lib/redmine_extended_api/proxy_app'
 
 Redmine::Plugin.register :redmine_extended_api do
@@ -40,3 +41,4 @@ Journal.include RedmineExtendedApi::Patches::JournalPatch
 ActionMailer::Base.register_interceptor(RedmineExtendedApi::MailSuppressionInterceptor)
 RolesController.prepend RedmineExtendedApi::Patches::RolesControllerPatch
 TrackersController.prepend RedmineExtendedApi::Patches::TrackersControllerPatch
+Webhook.singleton_class.prepend RedmineExtendedApi::Patches::WebhookPatch
