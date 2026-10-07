@@ -36,5 +36,7 @@
 * Fixed: refusals (tracker, role or custom field delete, issue status in use) answer 422 with the reason in errors instead of an empty body or a 500.
 * Fixed: a custom field create without a valid type answers 422 instead of 200 with HTML.
 * Fixed: an issue update without changes answers 204 like core instead of a journal without id.
-* Fixed: form encoded POSTs through /extended_api answered 500 on Redmine 5.1 (Rack 2).
-* Tested on Redmine 7.0-stable-GEOxyz (PostgreSQL, MariaDB) and 5.1-stable; integration tests against a real Redmine and end to end scenarios in test/e2e.
+* Fixed: the proxy keeps the parsed form of the request (form encoded POSTs answered 500 with Rack 2).
+* notify=false also silences the Redmine 7 webhooks of the request (decision of Jan, 2026-10-07).
+* Issue, Journal and Attachment are patched with prepend instead of alias_method (recursed next to redmine_stealth).
+* Requires Redmine 7 (GEOxyz goes straight to 7.0; decision of Jan, 2026-10-07). Tested on 7.0-stable-GEOxyz with PostgreSQL; integration tests against a real Redmine and end to end scenarios in test/e2e.

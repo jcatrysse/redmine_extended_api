@@ -129,8 +129,6 @@ class ExtendedApiOverridesTest < Redmine::ApiTest::Base
   # overrides were written, so a hook sees the imported author and dates (without
   # notify=false: that silences the webhooks too, see extended_api_webhooks_test.rb).
   def test_webhook_payload_of_created_issue_carries_the_overrides
-    skip 'webhooks are new in Redmine 7' unless defined?(Webhook)
-
     original_adapter = ActiveJob::Base.queue_adapter
     ActiveJob::Base.queue_adapter = :test
     WebhookEndpointValidator.class_eval { @blocked_hosts = nil }
@@ -159,7 +157,7 @@ class ExtendedApiOverridesTest < Redmine::ApiTest::Base
     assert_equal issue.author_id, payload.dig('data', 'issue', 'author', 'id')
     assert_equal issue.created_on.utc, Time.zone.parse(payload.dig('data', 'issue', 'created_on')).utc
   ensure
-    ActiveJob::Base.queue_adapter = original_adapter if original_adapter
+    ActiveJob::Base.queue_adapter = original_adapter
   end
 
   # Unparseable times were stored as NULL (issues, attachments) or raised (journals, and

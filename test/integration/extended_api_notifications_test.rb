@@ -68,8 +68,7 @@ class ExtendedApiNotificationsTest < Redmine::ApiTest::Base
   def test_notify_false_enqueues_no_issue_mail_and_without_it_one_is_enqueued
     original_adapter = ActiveJob::Base.queue_adapter
     ActiveJob::Base.queue_adapter = :test
-    # Mailer::DeliveryJob on Redmine 7, ActionMailer's own job on 5.1
-    issue_mails = -> { enqueued_jobs.count { |j| j[:job].to_s.include?('DeliveryJob') && j[:args][1] == 'issue_add' } }
+    issue_mails = -> { enqueued_jobs.count { |j| j[:job] == Mailer::DeliveryJob && j[:args][1] == 'issue_add' } }
 
     with_settings notified_events: %w(issue_added) do
       post '/extended_api/issues.json?notify=false',
