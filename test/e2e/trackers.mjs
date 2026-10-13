@@ -44,7 +44,9 @@ a.expect(await a.call('POST', '/extended_api/trackers.json', { as: 'manager', da
 a.expect(await a.call('DELETE', `/extended_api/trackers/${id}.json`, { as: 'reporter' }), 403, 'not admin');
 a.expect(await a.call('GET', `/trackers/${id}.json`), 404, 'show is extended only');
 const inUse = a.expect(await a.call('DELETE', '/extended_api/trackers/1.json'), 422, 'tracker in use');
-a.check(/E2E project/.test(inUse.json?.errors?.[0] || ''), `delete in use: no reason in ${inUse.text}`);
+// 6.1 and 7 name the projects, 5.1 only says why
+a.check(/cannot be deleted/.test(inUse.json?.errors?.[0] || ''), `delete in use: no reason in ${inUse.text}`);
+a.check(!/following projects/.test(inUse.text) || /E2E project/.test(inUse.text), `delete in use: projects not named in ${inUse.text}`);
 await a.show('refused', 'Refusals: blank and duplicate name (422), unknown id (404), non-admins (403), core path without show (404), tracker in use (422 naming the projects)');
 
 a.expect(await a.call('DELETE', `/extended_api/trackers/${id}.json`), 204);

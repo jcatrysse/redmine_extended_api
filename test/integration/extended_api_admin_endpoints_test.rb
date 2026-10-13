@@ -43,7 +43,9 @@ class ExtendedApiAdminEndpointsTest < Redmine::ApiTest::Base
     assert_response 422
     json = ActiveSupport::JSON.decode(response.body)
     assert_equal 1, json['errors'].size
-    assert_match(/eCookbook/, json['errors'].first)
+    assert_match(/cannot be deleted/, json['errors'].first)
+    # 6.1 and 7 name the projects (error_can_not_delete_tracker_html), 5.1 has no such key
+    assert_match(/eCookbook/, json['errors'].first) if I18n.exists?(:error_can_not_delete_tracker_html)
     assert_no_match(/<|>/, json['errors'].first)
   end
 
