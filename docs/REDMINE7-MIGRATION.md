@@ -110,7 +110,7 @@ After the decision of 2026-10-13 (5.1, 6.1 and 7.0), PostgreSQL 16.15, branch at
 | e2e 6.1-stable, production mode | smoke + core + 12 scenarios, 78 screenshots, 0 problems (`docs/e2e/redmine-6.1/`) |
 | e2e 7.0-stable-GEOxyz, production mode | smoke + core + 12 scenarios, 82 screenshots, 0 problems (`docs/e2e/`) |
 | screenshots looked at | all 238 opened (by me and three review agents, one per version) against their captions: no 500, no error page, no wrong user, every HTTP code as captioned. One caption of this change promised more than it showed (webhooks-none-before-7: the 404 was not in the picture): split into two screenshots. The rest are older, minor and identical on all three versions; listed under "Observations not fixed". |
-| OpenAI review | skipped, no OPENAI_API_KEY in this session |
+| OpenAI review | `docs/reviews/openai-2026-10-13-bfb2c31.md` (diff 77fb802..bfb2c31): no findings |
 | own review | the guard only decides whether the Webhook patch is prepended; on 7.0 behaviour is unchanged (webhook tests green, webhooks e2e 0 problems). The tracker fallback only changes the message where the _html key is missing (5.1). No findings. |
 | not run | MariaDB (decision 2026-10-07: PostgreSQL only); together with the other GEOxyz plugins on 5.1/6.1 (their 5.1/6.1 state is not part of this task) |
 
