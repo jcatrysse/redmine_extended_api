@@ -12,18 +12,14 @@ module RedmineExtendedApi
 
       EXTENDED_API_ATTACHMENT_OVERRIDE_ATTRIBUTES = %i[author_id created_on].freeze
 
-      # Prepended (Attachment.prepend), not alias_method: see IssuePatch.
+      # Prepended (Attachment.prepend), not alias_method, and safe_attributes= is not overridden
+      # (see IssuePatch): the overrides are set before validation.
       prepended do
         class_attribute :extended_api_attachment_override_attributes, instance_accessor: false
         self.extended_api_attachment_override_attributes ||= EXTENDED_API_ATTACHMENT_OVERRIDE_ATTRIBUTES
 
         before_validation :apply_extended_api_attachment_overrides_callback if respond_to?(:before_validation)
         after_save :apply_extended_api_attachment_overrides_after_save if respond_to?(:after_save)
-      end
-
-      def safe_attributes=(attrs, user = (defined?(User) ? User.current : nil))
-        super
-        apply_extended_api_attachment_overrides(user)
       end
 
       private

@@ -27,7 +27,8 @@ module RedmineExtendedApi
         return super unless extended_api_request?
         return if render_invalid_extended_api_overrides
 
-        with_extended_api_issue_context { super }
+        # the issue the update assigns its attributes to (on create it is built before this)
+        with_extended_api_issue_context(params[:id]) { super }
       end
 
       def render_api_ok(*args)
@@ -44,15 +45,17 @@ module RedmineExtendedApi
 
       private
 
-      def with_extended_api_issue_context
+      def with_extended_api_issue_context(target_id = nil)
         previous_overrides = Thread.current[:redmine_extended_api_issue_overrides]
         previous_journal_overrides = Thread.current[:redmine_extended_api_journal_overrides]
+        previous_target_id = Thread.current[:redmine_extended_api_issue_target_id]
         previous_issue_record_timestamps = Issue.record_timestamps if defined?(Issue) && Issue.respond_to?(:record_timestamps)
         disable_issue_timestamps = false
         overrides_allowed = allow_extended_api_overrides?
 
         overrides = extract_issue_override_attributes
         Thread.current[:redmine_extended_api_issue_overrides] = overrides if overrides_allowed
+        Thread.current[:redmine_extended_api_issue_target_id] = target_id
 
         disable_issue_timestamps = overrides_allowed && should_skip_issue_timestamps?(overrides)
         Issue.record_timestamps = false if disable_issue_timestamps
@@ -71,6 +74,7 @@ module RedmineExtendedApi
       ensure
         Thread.current[:redmine_extended_api_issue_overrides] = previous_overrides
         Thread.current[:redmine_extended_api_journal_overrides] = previous_journal_overrides
+        Thread.current[:redmine_extended_api_issue_target_id] = previous_target_id
         Thread.current[:redmine_extended_api_suppress_notifications] = nil
         if disable_issue_timestamps && defined?(Issue) && Issue.respond_to?(:record_timestamps=)
           Issue.record_timestamps = previous_issue_record_timestamps

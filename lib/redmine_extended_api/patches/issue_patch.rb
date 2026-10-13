@@ -13,18 +13,16 @@ module RedmineExtendedApi
       ISSUE_OVERRIDE_ATTRIBUTES  = %i[author_id created_on updated_on closed_on].freeze
       JOURNAL_OVERRIDE_ATTRIBUTES = %i[user_id created_on updated_on updated_by_id].freeze
 
-      # Prepended (Issue.prepend), not alias_method: other plugins patch safe_attributes= too,
-      # and an alias_method chain on a method someone prepends recurses.
+      # Prepended (Issue.prepend), not alias_method. safe_attributes= is not overridden at all:
+      # on Redmine 5.1/6.1 plugins loaded after this one (redmine_tags) alias_method it, and an
+      # alias_method chain on a prepended method recurses (stack level too deep). The issue
+      # overrides are set before validation instead, on the issue the request updates.
       prepended do
         class_attribute :extended_api_issue_override_attributes, instance_accessor: false
         self.extended_api_issue_override_attributes ||= ISSUE_OVERRIDE_ATTRIBUTES
 
+        before_validation :apply_extended_api_issue_overrides_before_validation
         after_save :apply_extended_api_issue_overrides_after_save
-      end
-
-      def safe_attributes=(attrs, user = (defined?(User) ? User.current : nil))
-        super
-        apply_extended_api_issue_overrides(user)
       end
 
       def init_journal(user, notes = '')
@@ -37,6 +35,15 @@ module RedmineExtendedApi
 
       def allow_extended_api_overrides?(user)
         user.respond_to?(:admin?) && user.admin?
+      end
+
+      # Only the issue the request updates (IssuesControllerPatch sets its id), not other issues
+      # saved in the same request (duplicates, rescheduled followers).
+      def apply_extended_api_issue_overrides_before_validation
+        target_id = Thread.current[:redmine_extended_api_issue_target_id]
+        return if target_id.blank? || !persisted? || id.to_s != target_id.to_s
+
+        apply_extended_api_issue_overrides(defined?(User) ? User.current : nil)
       end
 
       # Pre-save: set imported values on the Issue instance

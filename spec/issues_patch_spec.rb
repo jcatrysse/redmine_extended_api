@@ -164,6 +164,16 @@ RSpec.describe RedmineExtendedApi::Patches::IssuePatch do
 
       def self.after_save(*); end
 
+      def self.before_validation(*); end
+
+      def persisted?
+        true
+      end
+
+      def id
+        42
+      end
+
       def init_journal(user, notes = '')
         @init_journal_args = [user, notes]
         @current_journal = Journal.new
@@ -210,6 +220,7 @@ RSpec.describe RedmineExtendedApi::Patches::IssuePatch do
     Thread.current[:redmine_extended_api_issue_overrides] = nil
     Thread.current[:redmine_extended_api_journal_overrides] = nil
     Thread.current[:redmine_extended_api_suppress_notifications] = nil
+    Thread.current[:redmine_extended_api_issue_target_id] = nil
   end
 
   it 'applies override attributes for admins' do
@@ -222,7 +233,8 @@ RSpec.describe RedmineExtendedApi::Patches::IssuePatch do
       other: 'ignored'
     }
 
-    issue.safe_attributes=({subject: 'New'})
+    Thread.current[:redmine_extended_api_issue_target_id] = '42'
+    issue.send(:apply_extended_api_issue_overrides_before_validation)
 
     expect(issue.assigned_attributes).to eq(author_id: 3, created_on: '2020-01-01', updated_on: '2020-01-02', closed_on: '2020-01-03')
   end
@@ -231,7 +243,8 @@ RSpec.describe RedmineExtendedApi::Patches::IssuePatch do
     User.current = non_admin_user
     Thread.current[:redmine_extended_api_issue_overrides] = {author_id: 3}
 
-    issue.safe_attributes=({subject: 'New'})
+    Thread.current[:redmine_extended_api_issue_target_id] = '42'
+    issue.send(:apply_extended_api_issue_overrides_before_validation)
 
     expect(issue.assigned_attributes).to be_nil
   end

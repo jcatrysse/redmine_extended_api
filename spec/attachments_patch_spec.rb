@@ -157,11 +157,11 @@ RSpec.describe RedmineExtendedApi::Patches::AttachmentPatch do
     Thread.current[:redmine_extended_api_applying_attachment_overrides] = nil
   end
 
-  it 'applies override attributes for admins after safe assignment' do
+  it 'applies override attributes for admins before validation' do
     User.current = admin_user
     Thread.current[:redmine_extended_api_attachment_overrides] = { author_id: 3, created_on: '2020-01-01', ignored: 'x' }
 
-    attachment.safe_attributes=({ description: 'New attachment' })
+    attachment_class.run_before_validation_callbacks(attachment)
 
     expect(attachment.assigned_attributes).to eq(author_id: 3, created_on: '2020-01-01')
   end
@@ -170,7 +170,7 @@ RSpec.describe RedmineExtendedApi::Patches::AttachmentPatch do
     User.current = non_admin_user
     Thread.current[:redmine_extended_api_attachment_overrides] = { author_id: 3 }
 
-    attachment.safe_attributes=({ description: 'New attachment' })
+    attachment_class.run_before_validation_callbacks(attachment)
 
     expect(attachment.assigned_attributes).to be_nil
   end
