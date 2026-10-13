@@ -14,9 +14,12 @@ const stamp = Date.now() % 1000000;
 const receiver = await api.webhookReceiver();
 const hookFor = receiver.hookFor;
 
-await setApiSettings(t, { rest: true, webhooks: true });
-await api.addWebhook(t, receiver.url);
-await t.shot('webhook', 'A Redmine 7 webhook for issue created/updated in e2e-project, pointing at a receiver in the test');
+// webhooks are new in Redmine 7; on 5.1 and 6.1 the webhook checks are left out
+const hasWebhooks = await setApiSettings(t, { rest: true, webhooks: true });
+if (hasWebhooks) {
+  await api.addWebhook(t, receiver.url);
+  await t.shot('webhook', 'A Redmine 7 webhook for issue created/updated in e2e-project, pointing at a receiver in the test');
+}
 
 const users = a.expect(await a.call('GET', '/extended_api/users.json?limit=100'), 200).json?.users || [];
 const uid = login => users.find(u => u.login === login)?.id;
@@ -36,10 +39,12 @@ a.check(stored?.created_on === '2020-01-02T03:04:05Z', `admin create: created_on
 a.check(stored?.updated_on === '2020-01-03T03:04:05Z', `admin create: updated_on is ${stored?.updated_on}`);
 await a.show('admin-create', 'Admin imports an issue with author manager and dates in 2020 (201); reading it back shows the stored author and dates');
 
-const created = await hookFor('issue.created', id);
-a.check(!!created, 'no issue.created webhook received');
-a.check(created?.data?.issue?.author?.id === uid('manager') && created?.data?.issue?.created_on === '2020-01-02T03:04:05Z',
-  `webhook issue.created: author ${JSON.stringify(created?.data?.issue?.author)}, created_on ${created?.data?.issue?.created_on}`);
+const created = hasWebhooks ? await hookFor('issue.created', id) : null;
+if (hasWebhooks) {
+  a.check(!!created, 'no issue.created webhook received');
+  a.check(created?.data?.issue?.author?.id === uid('manager') && created?.data?.issue?.created_on === '2020-01-02T03:04:05Z',
+    `webhook issue.created: author ${JSON.stringify(created?.data?.issue?.author)}, created_on ${created?.data?.issue?.created_on}`);
+}
 
 await t.go(`/issues/${id}`);
 a.check(await t.page.locator('.author', { hasText: 'Manager E2E' }).count() > 0, 'issue page: author is not Manager E2E');
@@ -55,19 +60,23 @@ const after = a.expect(await a.call('GET', `/extended_api/issues/${id}.json`), 2
 a.check(after?.status?.id === closed?.id && after?.closed_on === '2021-05-06T07:08:00Z' && after?.updated_on === '2021-05-06T07:08:09Z',
   `admin update: status ${after?.status?.id}, closed_on ${after?.closed_on}, updated_on ${after?.updated_on}`);
 a.check(after?.created_on === '2020-01-02T03:04:05Z' && after?.author?.id === uid('manager'), 'admin update: the create overrides changed');
-const updatedHook = await hookFor('issue.updated', id);
-a.check(!!updatedHook, 'no issue.updated webhook received');
-a.check(updatedHook?.data?.issue?.closed_on === '2021-05-06T07:08:00Z', `webhook issue.updated: closed_on ${updatedHook?.data?.issue?.closed_on}`);
+const updatedHook = hasWebhooks ? await hookFor('issue.updated', id) : null;
+if (hasWebhooks) {
+  a.check(!!updatedHook, 'no issue.updated webhook received');
+  a.check(updatedHook?.data?.issue?.closed_on === '2021-05-06T07:08:00Z', `webhook issue.updated: closed_on ${updatedHook?.data?.issue?.closed_on}`);
+}
 await a.show('admin-update', 'Admin closes it with updated_on/closed_on in 2021 (200, journal returned); the stored dates are the given ones');
 await t.go(`/issues/${id}`);
 await t.shot('admin-update-page', 'The issue page after the import update: closed, the note in the history');
 
-const createdHookShown = { ...created, data: { issue: { id: created?.data?.issue?.id, author: created?.data?.issue?.author, created_on: created?.data?.issue?.created_on } } };
-const updatedHookShown = { type: updatedHook?.type, data: { issue: { id: updatedHook?.data?.issue?.id, closed_on: updatedHook?.data?.issue?.closed_on, updated_on: updatedHook?.data?.issue?.updated_on }, journal: { notes: updatedHook?.data?.journal?.notes } } };
-await t.page.setContent(`<!doctype html><meta charset="utf-8"><body style="font:13px sans-serif;margin:16px">
+if (hasWebhooks) {
+  const createdHookShown = { ...created, data: { issue: { id: created?.data?.issue?.id, author: created?.data?.issue?.author, created_on: created?.data?.issue?.created_on } } };
+  const updatedHookShown = { type: updatedHook?.type, data: { issue: { id: updatedHook?.data?.issue?.id, closed_on: updatedHook?.data?.issue?.closed_on, updated_on: updatedHook?.data?.issue?.updated_on }, journal: { notes: updatedHook?.data?.journal?.notes } } };
+  await t.page.setContent(`<!doctype html><meta charset="utf-8"><body style="font:13px sans-serif;margin:16px">
   <h1 style="font-size:16px">Webhook payloads received by the test (shortened)</h1>
   <pre>${JSON.stringify([createdHookShown, updatedHookShown], null, 2).replace(/</g, '&lt;')}</pre></body>`);
-await t.shot('webhook-payloads', 'The webhooks carry the imported author and dates, the same values as stored');
+  await t.shot('webhook-payloads', 'The webhooks carry the imported author and dates, the same values as stored');
+}
 
 // not admin, core path, invalid input
 const byManager = a.expect(await a.call('POST', '/extended_api/issues.json', {

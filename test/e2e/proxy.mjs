@@ -9,7 +9,7 @@ const { client, setApiSettings } = api;
 const a = client(t);
 
 await setApiSettings(t, { rest: true });
-await t.shot('rest-api-on', 'Administration > Settings > Integrations: REST API turned on through the form');
+await t.shot('rest-api-on', 'Administration > Settings > Integrations (API before Redmine 7): REST API turned on through the form');
 
 // same data on the core path and under /extended_api
 const core = a.expect(await a.call('GET', '/issues.json?project_id=e2e-project&status_id=*'), 200);

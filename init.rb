@@ -24,7 +24,7 @@ Redmine::Plugin.register :redmine_extended_api do
   description 'This plugin extends the default Redmine API by adding new endpoints and enabling write operations where only read access was previously available.'
   url 'https://github.com/jcatrysse/redmine_extended_api'
   version '0.1.0'
-  requires_redmine version_or_higher: '7.0'
+  requires_redmine version_or_higher: '5.1'
 end
 
 Attachment.prepend RedmineExtendedApi::Patches::AttachmentPatch
@@ -41,4 +41,5 @@ Journal.include RedmineExtendedApi::Patches::JournalPatch
 ActionMailer::Base.register_interceptor(RedmineExtendedApi::MailSuppressionInterceptor)
 RolesController.prepend RedmineExtendedApi::Patches::RolesControllerPatch
 TrackersController.prepend RedmineExtendedApi::Patches::TrackersControllerPatch
-Webhook.singleton_class.prepend RedmineExtendedApi::Patches::WebhookPatch
+# Webhooks are new in Redmine 7
+Webhook.singleton_class.prepend RedmineExtendedApi::Patches::WebhookPatch if defined?(::Webhook)

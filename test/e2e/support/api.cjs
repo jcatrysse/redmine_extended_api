@@ -86,14 +86,17 @@ function client(t) {
 }
 
 // Turns the REST API (and optionally the webhooks) on or off in Administration >
-// Settings > Integrations, through the form, as admin. Leaves the browser logged in as admin.
+// Settings > Integrations (the tab is "API" before Redmine 7), through the form, as admin.
+// Leaves the browser logged in as admin. Returns whether this Redmine has webhooks (7.0+).
 async function setApiSettings(t, { rest = true, webhooks } = {}) {
   await t.login('admin');
-  await t.go('/settings?tab=integrations');
+  await t.go('/settings');
   await t.sudo();
-  if (!/tab=integrations/.test(t.page.url())) await t.go('/settings?tab=integrations');
+  const tab = (await t.page.locator('#tab-integrations').count()) ? 'integrations' : 'api';
+  await t.go(`/settings?tab=${tab}`);
+  const hasWebhooks = (await t.page.locator('#settings_webhooks_enabled').count()) > 0;
   await t.page.setChecked('#settings_rest_api_enabled', rest);
-  if (webhooks !== undefined) await t.page.setChecked('#settings_webhooks_enabled', webhooks);
+  if (webhooks !== undefined && hasWebhooks) await t.page.setChecked('#settings_webhooks_enabled', webhooks);
   await t.page.locator('#settings_rest_api_enabled').locator('xpath=ancestor::form').locator('input[type=submit]').click();
   await t.settle();
   await t.sudo();
@@ -101,6 +104,7 @@ async function setApiSettings(t, { rest = true, webhooks } = {}) {
   if ((await t.page.locator('#settings_rest_api_enabled').isChecked()) !== rest) {
     t.problems.push(`API settings: REST API is not ${rest ? 'on' : 'off'} after saving`);
   }
+  return hasWebhooks;
 }
 
 // A webhook receiver for Redmine 7 webhooks. Core refuses loopback and link-local webhook

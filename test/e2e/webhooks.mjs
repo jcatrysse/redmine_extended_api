@@ -11,7 +11,16 @@ const stamp = Date.now() % 1000000;
 const receiver = await api.webhookReceiver();
 const results = [];
 
-await setApiSettings(t, { rest: true, webhooks: true });
+const hasWebhooks = await setApiSettings(t, { rest: true, webhooks: true });
+if (!hasWebhooks) {
+  // Redmine 5.1 and 6.1 have no webhooks: nothing to silence, the plugin does not patch them
+  await t.go('/webhooks', { status: 404 });
+  await t.go('/settings?tab=api');
+  await t.shot('none-before-7', 'Redmine before 7.0: Settings > API has no webhook setting and /webhooks is 404; the plugin boots without its webhook patch');
+  receiver.close();
+  await t.done();
+  process.exit();
+}
 await api.addWebhook(t, receiver.url);
 await t.go('/webhooks');
 await t.shot('webhook', 'A Redmine 7 webhook for issue created/updated in e2e-project, pointing at a receiver in the test');

@@ -9,6 +9,8 @@ class ExtendedApiWebhooksTest < Redmine::ApiTest::Base
 
   def setup
     super
+    skip 'webhooks are new in Redmine 7' unless defined?(Webhook)
+
     @original_adapter = ActiveJob::Base.queue_adapter
     ActiveJob::Base.queue_adapter = :test
     WebhookEndpointValidator.class_eval { @blocked_hosts = nil }
@@ -18,7 +20,7 @@ class ExtendedApiWebhooksTest < Redmine::ApiTest::Base
   end
 
   def teardown
-    ActiveJob::Base.queue_adapter = @original_adapter
+    ActiveJob::Base.queue_adapter = @original_adapter if @original_adapter
     super
   end
 
