@@ -22,14 +22,15 @@ what is left. Written 2026-10-06 from a measured analysis (report at the bottom)
 | Upstream sync | GEEN UPSTREAM |
 | After sync | n.v.t. |
 | Complexity (1 trivial .. 5 rewrite) | 2 |
-| Measured on | Redmine 7.0.1 (7.0-stable-GEOxyz + latest 7.0-stable), Rails 8.1.3.1, Ruby 3.3.6, PostgreSQL 16 (MariaDB 10.11 until 2026-10-06) |
+| Measured on | Redmine 7.0.1 (7.0-stable-GEOxyz + latest 7.0-stable), Rails 8.1.3.1, Ruby 3.3.6, PostgreSQL 16 (MariaDB 10.11 until 2026-10-06); since 2026-10-13 also Redmine 5.1.13 (Rails 6.1.7.10, Ruby 3.2.6) and 6.1.5 (Rails 7.2.4, Ruby 3.3.6) |
 | Branch head when this file was written | `fed0232` |
-| Migration session finished | 2026-10-06; Jan's decisions of 2026-10-07 built the same week, see "Decided by Jan" and "Results" |
+| Migration session finished | 2026-10-06; Jan's decisions of 2026-10-07 built the same week; 5.1/6.1/7.0 compatibility (decision 2026-10-13) built 2026-10-13, see "Decided by Jan" and "Results" |
+| Supported Redmine | 5.1, 6.1 and 7.0 (`requires_redmine 5.1`, decision 2026-10-13) |
 
 ## Already on this branch
 
 All runs on 7.0-stable-GEOxyz (Redmine 7.0.1, Rails 8.1.3.1, Ruby 3.3.6) unless said otherwise. Every fix
-has a test that fails without it. (Until 2026-10-07 they were also run on 5.1-stable; that is no longer required.)
+has a test that fails without it. Since 2026-10-13 (decision of Jan) every run is also done on 5.1-stable and 6.1-stable.
 
 | commit | what | found by |
 |---|---|---|
@@ -49,6 +50,8 @@ has a test that fails without it. (Until 2026-10-07 they were also run on 5.1-st
 | `d6013b3` | requires_redmine 7.0 (init.rb patches Webhook); 5.1-only test paths removed. | decision 2026-10-07 |
 | `fbe490a` | e2e scenario `webhooks.mjs`; final e2e run, 82 screenshots. | |
 | `4c7729a`, `22c630d` | End to end scenarios (test/e2e) and screenshots (docs/e2e). | |
+| `20079da` | Redmine 5.1, 6.1 and 7.0 again (decision 2026-10-13): requires_redmine 5.1; Webhook patch only `if defined?(::Webhook)` (without it 5.1 does not boot: `init.rb:45: uninitialized constant Webhook (NameError)`); the 5.1 test paths of `d6013b3` restored, the webhook tests skip without Webhook; e2e: Settings tab "API" before 7.0, webhook checks only on 7.0. | decision 2026-10-13 |
+| `d0572f6` | DELETE of a tracker in use on 5.1 answered only "Unable to delete tracker" (5.1 has no `error_can_not_delete_tracker_html`); now core 5.1's `error_can_not_delete_tracker`. Test fails on 5.1 without it. | e2e on 5.1 |
 
 ## Work list for the migration session
 
@@ -66,7 +69,8 @@ In this order: things that break, security, the GEOxyz changes, the open items, 
 **Checks**
 
 4. Run the plugin's whole test suite on Redmine 7.0-stable-GEOxyz with PostgreSQL (MariaDB and 5.1 no longer required, decision 2026-10-07). **DONE**, numbers under "Results".
-7. Jan's decisions of 2026-10-07 (prepend, webhooks with notify=false, Redmine 7 only). **DONE**, see "Decided by Jan".
+7. Jan's decisions of 2026-10-07 (prepend, webhooks with notify=false, Redmine 7 only). **DONE**, see "Decided by Jan". "Redmine 7 only" replaced on 2026-10-13, see item 8.
+8. Decision of 2026-10-13: compatible with Redmine 5.1, 6.1 and 7.0 (webhook patch only when `::Webhook` is defined, requires_redmine 5.1, 5.1 test paths of `d6013b3` back, Ruby syntax valid on the oldest supported Ruby). Tests and e2e on 5.1-stable, 6.1-stable and 7.0-stable-GEOxyz with PostgreSQL. **DONE** `20079da`, `d0572f6`; numbers under "Results".
 5. Check Redmine 7 webhooks against this plugin (see "Rules"), and note the result here even if nothing is needed. **DONE**: the issue payload is rendered in `after_*_commit`, after the plugin's `after_save` wrote the overrides, so `issue.created`/`issue.updated` carry the imported author and dates, equal to the database (integration test + real webhook received in the e2e run, screenshot `issue-overrides-webhook-payloads`). An unparseable override date used to make the webhook payload raise (500 after commit): fixed by `f175456`. notify=false does not suppress webhooks (mail only): see open question 2.
 6. Verify every feature of the plugin by hand on a running Redmine 7 (screenshots). **DONE**, see "Inventory of functions".
 
@@ -78,7 +82,8 @@ Own plugin: all of it is GEOxyz code, so there is nothing to re-apply. While mig
 
 Actions the person doing the upgrade must take, or know about, for this plugin:
 
-- No migrations, no settings, no files. Deploy the branch and restart. The plugin now requires Redmine 7.0.
+- No migrations, no settings, no files. Deploy the branch and restart. The plugin runs on Redmine 5.1, 6.1 and 7.0
+  (decision 2026-10-13); on 5.1 and 6.1 there are no webhooks, so the webhook part of notify=false does nothing there.
 - notify=false / send_notification=0 on /extended_api now also suppresses the Redmine 7 webhooks of that
   request (decision q2): systems fed by webhooks do not see imports made that way.
 - Behaviour changes API clients may notice (all on `/extended_api`, all fixes): an admin override with a
@@ -91,6 +96,23 @@ Actions the person doing the upgrade must take, or know about, for this plugin:
 - REST API stays required (Administration > Settings > **Integrations** on Redmine 7, the tab was "API").
 
 ## Results
+
+After the decision of 2026-10-13 (5.1, 6.1 and 7.0), PostgreSQL 16.15, branch at `d0572f6` plus the e2e caption fix:
+
+| run | result |
+|---|---|
+| tests, 5.1-stable (5.1.13, Rails 6.1.7.10, Ruby 3.2.6) | minitest 31 runs, 87 assertions, 0 failures, 0 errors, 7 skips (the webhook tests: no webhooks before 7.0); rspec 161 examples, 0 failures |
+| tests, 6.1-stable (6.1.5, Rails 7.2.4, Ruby 3.3.6) | minitest 31 runs, 100 assertions, 0 failures, 0 errors, 7 skips (same); rspec 161 examples, 0 failures |
+| tests, 7.0-stable-GEOxyz (7.0.1, Rails 8.1.3.1, Ruby 3.3.6) | minitest 31 runs, 125 assertions, 0 failures, 0 errors, 0 skips; rspec 161 examples, 0 failures |
+| boot on 5.1 without the `defined?(::Webhook)` guard | `init.rb:45:in '<top (required)>': uninitialized constant Webhook (NameError)`; with it: boots |
+| Ruby syntax, oldest supported Ruby | all 49 Ruby files of the plugin (lib, app, init, config, spec, test, .codex) parse with `Parser::Ruby27` (parser gem 3.3.12, Ruby 2.7 grammar: the oldest Ruby of Redmine 5.1); the check rejects Ruby 3.0 endless methods. Not run on a real Ruby 2.7/3.0/3.1 (not installed here). |
+| e2e 5.1-stable, production mode | smoke + core + 12 scenarios, 78 screenshots, 0 problems (`docs/e2e/redmine-5.1/`); webhooks: two screenshots, Settings > API has no webhook setting and `/webhooks` is 404 |
+| e2e 6.1-stable, production mode | smoke + core + 12 scenarios, 78 screenshots, 0 problems (`docs/e2e/redmine-6.1/`) |
+| e2e 7.0-stable-GEOxyz, production mode | smoke + core + 12 scenarios, 82 screenshots, 0 problems (`docs/e2e/`) |
+| screenshots looked at | all 238 opened (by me and three review agents, one per version) against their captions: no 500, no error page, no wrong user, every HTTP code as captioned. One caption of this change promised more than it showed (webhooks-none-before-7: the 404 was not in the picture): split into two screenshots. The rest are older, minor and identical on all three versions; listed under "Observations not fixed". |
+| OpenAI review | skipped, no OPENAI_API_KEY in this session |
+| own review | the guard only decides whether the Webhook patch is prepended; on 7.0 behaviour is unchanged (webhook tests green, webhooks e2e 0 problems). The tracker fallback only changes the message where the _html key is missing (5.1). No findings. |
+| not run | MariaDB (decision 2026-10-07: PostgreSQL only); together with the other GEOxyz plugins on 5.1/6.1 (their 5.1/6.1 state is not part of this task) |
 
 After Jan's decisions (2026-10-07, PostgreSQL 16.15):
 
@@ -138,15 +160,35 @@ exchange and the Redmine page that shows the result.
 | Attachment overrides author_id/created_on on `/extended_api/uploads` | admin API | `attachment_overrides.mjs` | attachment-overrides-admin, -issue-page, -ignored, -refused, -issue-page-member |
 | notify=false / send_notification=0 on issues and relations | any API user | `notifications.mjs` | notifications-calls, -mail-count, -quiet-issue |
 | Issue relations create/delete (core permissions, notify=false) | members with manage_issue_relations | `relations.mjs` | relations-create, -issue-page, -refused, -delete, -issue-page-after |
-| notify=false / send_notification=0 silence the Redmine 7 webhooks of the request (decision q2) | any API user; core path untouched | `webhooks.mjs` | webhooks-webhook, -calls, -received, -quiet-issue |
+| notify=false / send_notification=0 silence the Redmine 7 webhooks of the request (decision q2) | any API user; core path untouched; 7.0 only | `webhooks.mjs` | webhooks-webhook, -calls, -received, -quiet-issue; on 5.1/6.1 webhooks-none-before-7, -none-before-7-404 |
 | Show routes only under `/extended_api` (core `/trackers/1.json` etc. 404) | API | in the scenarios above and `smoke.mjs` | smoke-13..15, the -refused screenshots |
 
 Users per scenario: admin (everything), manager (all project permissions, not admin: admin endpoints
 403, overrides ignored), reporter (core Reporter role: 403 where core refuses), outsider (no membership:
 private project refused), anonymous (401). No "before" pictures on 5.1: the plugin has no layout, the
-behaviour differences are shown by the tests that fail without each fix, and 5.1 is out of scope.
+behaviour differences are shown by the tests that fail without each fix.
+
+Since 2026-10-13 the same scenarios run on 5.1-stable and 6.1-stable too; their screenshots are in
+`docs/e2e/redmine-5.1/` and `docs/e2e/redmine-6.1/` (same names; the webhook screenshots of
+issue-overrides and webhooks exist only on 7.0, `webhooks-none-before-7` only on 5.1/6.1).
 
 ## Observations not fixed (minor, pre-existing)
+
+Found in the screenshot review of 2026-10-13, the same on 5.1, 6.1 and 7.0 (scenarios and plugin
+unchanged by this work, so recorded, not fixed):
+
+- `x-redmine-extended-api` says `native` on issue create and upload calls where the admin overrides
+  were applied, and on `PUT /extended_api/roles/999999.json` (404); other unknown-id 404s say `extended`.
+- Enumerations: the index returns `"type": "time_entry_activities"`, create/update return
+  `"type": "TimeEntryActivity"`.
+- An issue update with `updated_on`/`closed_on` in the past creates its journal dated now (the issue page
+  shows "Updated over 5 years ago" next to a journal of a minute ago). Sending `journal[created_on]` avoids it.
+- Captions that claim a little more than the picture shows: custom-fields-admin-edit (the options sit behind
+  "Possible values > Edit"), custom-fields-delete (only field 1 is read back), proxy-same-as-core (no core
+  XML row), roles-admin-crud (the copied workflow is not visible), notifications-calls (no relation call
+  without notify=false), webhooks-webhook (7.0: a second webhook left by issue-overrides). The checks behind
+  them pass; the pictures are incomplete.
+- Issue statuses list: core's "...in the workflows(Edit)" has no space (core, not the plugin).
 
 - An imported journal with only `created_on` gets `updated_on` = now, so Redmine shows it as "Edited"
   (screenshot journal-overrides-history). Sending `updated_on` too avoids it.
@@ -166,10 +208,18 @@ behaviour differences are shown by the tests that fail without each fix, and 5.1
 Recorded 2026-10-07 from `docs/DECISIONS-2026-10-07.md` (Jan's answers in the coordinating session);
 notes verbatim. Final.
 
+For this plugin (2026-10-13), replacing "Redmine 7 only" of 2026-10-07 below:
+- Compatible with Redmine 5.1, 6.1 and 7.0: the webhook patch only when `::Webhook` is defined,
+  requires_redmine 5.1, the 5.1 test paths removed in `d6013b3` restored, Ruby syntax valid on the
+  oldest supported Ruby; tests and e2e on 5.1-stable, 6.1-stable and 7.0-stable-GEOxyz with
+  PostgreSQL. (Context: jcatrysse/jira2redmine_migration, docs/MIGRATION-PLAN.md, work list 4.)
+  Done: `20079da`, `d0572f6`.
+
 General, for every GEOxyz plugin (2026-10-07):
 - GEOxyz goes straight to Redmine 7: no backports to 5.1, nothing is cherry-picked to `main`;
   `redmine70-migration` goes live with Redmine 7. 5.1 compatibility is no longer required and no code
   path exists only for 5.1. Done here: `d6013b3` (requires_redmine 7.0, 5.1-only test paths removed).
+  **For this plugin replaced on 2026-10-13** (see above): 5.1, 6.1 and 7.0 again.
 - Production runs PostgreSQL 16 only; tests and e2e run on PostgreSQL. MariaDB runs are no longer
   required (the earlier MariaDB results below are kept as history).
 - deface without a version constraint: n.v.t., this plugin does not use deface.
@@ -194,7 +244,17 @@ For this plugin:
 
 ## Open questions for Jan
 
-- None.
+Taken by me on 2026-10-13 while waiting (the most likely option), asked through the coordinator:
+
+- **redmine_extended_api-q4**, oldest Ruby. Redmine 5.1 allows Ruby 2.7 to 3.2, so the syntax is
+  checked against Ruby 2.7 (parser gem), and the 5.1 runs use Ruby 3.2.6. Not run on a real Ruby
+  2.7/3.0/3.1. Open: is 2.7 the floor, or does the 5.1 that needs this plugin run 3.x?
+- **redmine_extended_api-q5**, where the 5.1 version runs. Nothing goes to `main` (decision
+  2026-10-07, "nothing is cherry-picked to main", not revoked). If the Jira import needs the plugin
+  on the current 5.1 production before Redmine 7, `redmine70-migration` (or a tag of it) can be
+  deployed there as is. Open: deploy this branch on 5.1, or merge to `main`?
+- **redmine_extended_api-q6**, notify=false on 5.1/6.1 silences mail only (there are no webhooks).
+  Taken as self-evident; noted under "After the upgrade".
 
 ## Not testable here
 
@@ -309,8 +369,10 @@ results quoted in the analysis come from it.
   (on by default: `t.sudo()` in a scenario). The breaker list is in the migration kit's CHECKLIST.md.
 - **Locales**: keep the locales the plugin ships in sync; translate a new key by matching the
   closest existing key in the same file, not from scratch; do not add new languages.
-- **Redmine 7 only** (decision of Jan, 2026-10-07): no 5.1 compatibility, no backports, no code paths
-  that exist only for 5.1.
+- **Redmine 5.1, 6.1 and 7.0** (decision of Jan, 2026-10-13, replacing "Redmine 7 only" of
+  2026-10-07): code that only exists on 7.0 (Webhook) is used behind `defined?`; tests skip what
+  an older Redmine lacks, never weaker; Ruby syntax valid on Ruby 2.7; tests and e2e on
+  5.1-stable, 6.1-stable and 7.0-stable-GEOxyz.
 - **PostgreSQL** (decision of Jan, 2026-10-07): tests and e2e on PostgreSQL 16; keep SQL portable where it
   costs nothing; a MariaDB-only problem is a note, not a blocker.
 - **prepend, not alias_method** (decision of Jan, 2026-10-07) for core methods other plugins also patch.
@@ -324,8 +386,8 @@ results quoted in the analysis come from it.
 ## Definition of done
 
 - All items of the work list are done or explicitly deferred with a reason, in this file.
-- The plugin's tests are green on Redmine 7.0-stable-GEOxyz with PostgreSQL
-  (numbers in this file); boot, production-like eager load, migrations up/down OK.
+- The plugin's tests are green on Redmine 5.1-stable, 6.1-stable and 7.0-stable-GEOxyz with
+  PostgreSQL (numbers in this file); boot, production-like eager load, migrations up/down OK.
 - Every function in the inventory exercised end to end on a real running Redmine, with and
   without permissions and on its failure paths; `./.codex/e2e.sh` green; screenshots looked at,
   committed in `docs/e2e/` and listed.

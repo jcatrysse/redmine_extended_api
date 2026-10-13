@@ -39,4 +39,5 @@
 * Fixed: the proxy keeps the parsed form of the request (form encoded POSTs answered 500 with Rack 2).
 * notify=false also silences the Redmine 7 webhooks of the request (decision of Jan, 2026-10-07).
 * Issue, Journal and Attachment are patched with prepend instead of alias_method (recursed next to redmine_stealth).
-* Requires Redmine 7 (GEOxyz goes straight to 7.0; decision of Jan, 2026-10-07). Tested on 7.0-stable-GEOxyz with PostgreSQL; integration tests against a real Redmine and end to end scenarios in test/e2e.
+* Fixed: DELETE of a tracker in use gives core's reason on Redmine 5.1 too, instead of only "Unable to delete tracker".
+* Runs on Redmine 5.1, 6.1 and 7.0 (decision of Jan, 2026-10-13, replacing "Redmine 7 only" of 2026-10-07); the webhook patch is applied only where Redmine has webhooks (7.0). Tested on 5.1-stable, 6.1-stable and 7.0-stable-GEOxyz with PostgreSQL; integration tests against a real Redmine and end to end scenarios in test/e2e.
