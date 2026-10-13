@@ -113,6 +113,7 @@ After `161fa52` (overnight 2026-10-13, PostgreSQL 16.15):
 | e2e, production mode | 5.1: 78 screenshots, 6.1: 78, 7.0: 82; 0 problems each (notifications and webhooks scenarios included; not re-committed, no page changed) |
 | Ruby 2.7 syntax | 50 files, 0 errors |
 | OpenAI review of `161fa52` | `docs/reviews/openai-2026-10-13-161fa52.md`: no findings |
+| 5.1 rollout gate (session B2, production plugin set, branch at `c806a17`) | GREEN: full fresh run GEOS+SIS+OAC, verify 22 checks 0 failures, script results equal to `main` `132fff5`, no SystemStackError in the puma log (reported by the coordinator, 2026-10-13) |
 
 After `22e3eb8` and `f9bf1e7` (2026-10-13, PostgreSQL 16.15):
 
