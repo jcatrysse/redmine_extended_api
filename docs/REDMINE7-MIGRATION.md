@@ -84,8 +84,8 @@ Own plugin: all of it is GEOxyz code, so there is nothing to re-apply. While mig
 
 Actions the person doing the upgrade must take, or know about, for this plugin:
 
-- No migrations, no settings, no files. Deploy the branch and restart. `main` has this branch since
-  2026-10-13 (merge `9a10043`, q5). The plugin runs on Redmine 5.1, 6.1 and 7.0
+- No migrations, no settings, no files. Deploy the branch and restart. `main` had this branch from
+  merge `9a10043` until it was set back to `132fff5` the same day (see q5). The plugin runs on Redmine 5.1, 6.1 and 7.0
   (decision 2026-10-13); on 5.1 and 6.1 there are no webhooks, so the webhook part of notify=false does nothing there.
 - notify=false / send_notification=0 on /extended_api now also suppresses the Redmine 7 webhooks of that
   request (decision q2): systems fed by webhooks do not see imports made that way.
@@ -242,7 +242,13 @@ Answers of 2026-10-13 to the points taken while waiting (through the coordinator
   `main`, PostgreSQL 16.15: 5.1-stable minitest 31 runs, 0 failures, 7 skips, rspec 161/0;
   6.1-stable 31 runs, 0 failures, 7 skips, rspec 161/0; 7.0-stable-GEOxyz 31 runs, 125 assertions,
   0 failures, 0 skips, rspec 161/0. e2e not repeated: the merged tree is identical to
-  `redmine70-migration` at `9ee0d3c`, whose e2e runs are under "Results". Original conditions: session B's 5.1 baseline rerun with
+  `redmine70-migration` at `9ee0d3c`, whose e2e runs are under "Results". **Set back the same day**
+  on Jan's instruction, after session B's 5.1 gate was red (SystemStackError next to redmine_tags,
+  fixed in `22e3eb8`): `main` = `132fff5` again, what production runs, with
+  `git push --force-with-lease=main:ae192d4 origin 132fff5:refs/heads/main`. The next merge into
+  `main` comes after B's 5.1 gate is green on this branch and Jan's own go; the identity rewrite of
+  this branch (author/committer Jan, trailers removed, review files renamed) is done once, right
+  before that merge. Original conditions: session B's 5.1 baseline rerun with
   redmine_extended_api `redmine70-migration` is green, and Jan gives an explicit go through the
   coordinator. The 2026-10-07 rule "nothing to main" is lifted for that one merge only. When the go
   comes: a normal merge, no force-push, tests re-run on the merged `main`.
