@@ -35,6 +35,25 @@ class ExtendedApiOverridesTest < Redmine::ApiTest::Base
     assert_equal Time.utc(2020, 1, 3, 3, 4, 5), issue.updated_on.utc
   end
 
+  # The parent is saved again (recalculated) while the subtask is created; the overrides of the
+  # subtask were written to the parent too (author and created_on of the parent lost).
+  def test_create_subtask_as_admin_leaves_the_parent_alone
+    parent = Issue.find(1)
+    author_id, created_on = parent.author_id, parent.created_on
+
+    post '/extended_api/issues.json?notify=false',
+         params: {issue: {project_id: 1, tracker_id: 1, subject: 'Imported subtask', parent_issue_id: 1,
+                          author_id: 3, created_on: '2020-01-02T03:04:05Z'}},
+         headers: credentials('admin')
+    assert_response :created
+
+    child = Issue.order(:id).last
+    assert_equal [1, 3, Time.utc(2020, 1, 2, 3, 4, 5)], [child.parent_id, child.author_id, child.created_on.utc]
+    parent.reload
+    assert_equal author_id, parent.author_id
+    assert_equal created_on, parent.created_on
+  end
+
   def test_create_issue_as_non_admin_ignores_overrides
     post '/extended_api/issues.json',
          params: {issue: {project_id: 1, tracker_id: 1, subject: 'Not imported',

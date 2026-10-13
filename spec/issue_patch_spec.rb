@@ -39,6 +39,11 @@ RSpec.describe RedmineExtendedApi::Patches::IssuePatch do
         true
       end
 
+      # the save that inserted it (a create)
+      def saved_change_to_id?
+        true
+      end
+
       def init_journal(user, notes = '')
         @init_journal_args = [user, notes]
         @current_journal = Journal.new
@@ -335,6 +340,18 @@ RSpec.describe RedmineExtendedApi::Patches::IssuePatch do
     expect(issue.safe_attributes_payload).to eq(subject: 'New', tag_list: ['a'])
     expect(issue.tag_list).to eq(['a'])
     expect(issue.assigned_attributes).to eq(author_id: 3)
+  end
+
+  it 'does not force the overrides after save on an issue the request did not create or name' do
+    User.current = admin_user
+    Thread.current[:redmine_extended_api_issue_overrides] = { author_id: 3, created_on: '2020-01-01 00:00:00' }
+    issue.define_singleton_method(:saved_change_to_id?) { false }
+
+    issue.send(:apply_extended_api_issue_overrides_after_save)
+    Thread.current[:redmine_extended_api_issue_target_id] = '7'
+    issue.send(:apply_extended_api_issue_overrides_after_save)
+
+    expect(issue_class.update_all_calls).to be_empty
   end
 
   it 'leaves other issues saved in the same request alone' do

@@ -40,10 +40,20 @@ module RedmineExtendedApi
       # Only the issue the request updates (IssuesControllerPatch sets its id), not other issues
       # saved in the same request (duplicates, rescheduled followers).
       def apply_extended_api_issue_overrides_before_validation
-        target_id = Thread.current[:redmine_extended_api_issue_target_id]
-        return if target_id.blank? || !persisted? || id.to_s != target_id.to_s
+        return if Thread.current[:redmine_extended_api_issue_target_id].blank? || !persisted?
+        return unless extended_api_override_target?
 
         apply_extended_api_issue_overrides(defined?(User) ? User.current : nil)
+      end
+
+      # The issue the request updates (its id) or, on create, the one this save inserted; not
+      # a parent recalculated or another issue saved along with it, which kept its own author
+      # and dates only by luck before (a subtask import overwrote its parent's).
+      def extended_api_override_target?
+        target_id = Thread.current[:redmine_extended_api_issue_target_id]
+        return id.to_s == target_id.to_s if target_id.present?
+
+        respond_to?(:saved_change_to_id?) && saved_change_to_id?
       end
 
       # Pre-save: set imported values on the Issue instance
@@ -80,6 +90,7 @@ module RedmineExtendedApi
       # Post-save: force issue timestamps/author, bypassing callbacks that overwrite them
       def apply_extended_api_issue_overrides_after_save
         return if Thread.current[:redmine_extended_api_applying_issue_overrides]
+        return unless extended_api_override_target?
 
         overrides = Thread.current[:redmine_extended_api_issue_overrides]
         return unless overrides.is_a?(Hash)
