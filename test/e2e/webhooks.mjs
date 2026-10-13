@@ -14,9 +14,10 @@ const results = [];
 const hasWebhooks = await setApiSettings(t, { rest: true, webhooks: true });
 if (!hasWebhooks) {
   // Redmine 5.1 and 6.1 have no webhooks: nothing to silence, the plugin does not patch them
-  await t.go('/webhooks', { status: 404 });
   await t.go('/settings?tab=api');
-  await t.shot('none-before-7', 'Redmine before 7.0: Settings > API has no webhook setting and /webhooks is 404; the plugin boots without its webhook patch');
+  await t.shot('none-before-7', 'Redmine before 7.0: Settings > API has no webhook setting (the plugin runs without its webhook patch)');
+  await t.go('/webhooks', { status: 404 });
+  await t.shot('none-before-7-404', 'Redmine before 7.0: /webhooks does not exist (404)');
   receiver.close();
   await t.done();
   process.exit();

@@ -1,6 +1,6 @@
 # relations
 
-Run 2026-10-07T16:11:18.684Z against http://127.0.0.1:3000.
+Run 2026-10-13T14:29:54.454Z against http://127.0.0.1:3070.
 
 | screenshot | user | URL | shows |
 |---|---|---|---|
