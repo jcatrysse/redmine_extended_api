@@ -52,6 +52,8 @@ has a test that fails without it. Since 2026-10-13 (decision of Jan) every run i
 | `4c7729a`, `22c630d` | End to end scenarios (test/e2e) and screenshots (docs/e2e). | |
 | `20079da` | Redmine 5.1, 6.1 and 7.0 again (decision 2026-10-13): requires_redmine 5.1; Webhook patch only `if defined?(::Webhook)` (without it 5.1 does not boot: `init.rb:45: uninitialized constant Webhook (NameError)`); the 5.1 test paths of `d6013b3` restored, the webhook tests skip without Webhook; e2e: Settings tab "API" before 7.0, webhook checks only on 7.0. | decision 2026-10-13 |
 | `d0572f6` | DELETE of a tracker in use on 5.1 answered only "Unable to delete tracker" (5.1 has no `error_can_not_delete_tracker_html`); now core 5.1's `error_can_not_delete_tracker`. Test fails on 5.1 without it. | e2e on 5.1 |
+| `22e3eb8` | On 5.1 with redmine_tags (master) every POST /issues.json was a 500, SystemStackError: this plugin prepended `Issue#safe_attributes=`, redmine_tags loads after it and alias_method-chains the same method, so super looped (0 of 426 issues in session B's 5.1 gate). Issue and Attachment no longer override `safe_attributes=`; the issue overrides are set in `before_validation`, only on the issue the update names. Rspec with an alias chain fails without it (SystemStackError); integration test next to redmine_tags. | 5.1 rollout gate (session B) |
+| `f9bf1e7` | A subtask created through /extended_api with author_id/created_on overwrote the author and created_on of its parent (the after_save override ran for every issue saved in the request; parent recalculation saves the parent). Now only the issue the request creates or updates. Integration test fails without it. | own review of `22e3eb8` |
 
 ## Work list for the migration session
 
@@ -97,6 +99,21 @@ Actions the person doing the upgrade must take, or know about, for this plugin:
 - REST API stays required (Administration > Settings > **Integrations** on Redmine 7, the tab was "API").
 
 ## Results
+
+After `22e3eb8` and `f9bf1e7` (2026-10-13, PostgreSQL 16.15):
+
+| run | result |
+|---|---|
+| 5.1.13 with redmine_tags master, before the fix | `Issue.new.safe_attributes = {...}`: `SystemStackError: stack level too deep`; the integration test hung until the 600 s timeout |
+| 5.1.13 with redmine_tags master, after | `Issue.new.safe_attributes = {...}` no error; `extended_api_other_plugins_test` 1 run, 9 assertions, 0 failures |
+| tests, 5.1-stable (without redmine_tags: running the whole suite with it again was refused by this session's permission check) | minitest 33 runs, 91 assertions, 0 failures, 0 errors, 8 skips (webhooks, redmine_tags test); rspec 164 examples, 0 failures |
+| tests, 6.1-stable | minitest 33 runs, 104 assertions, 0 failures, 0 errors, 8 skips; rspec 164 examples, 0 failures |
+| tests, 7.0-stable-GEOxyz | minitest 33 runs, 129 assertions, 0 failures, 0 errors, 1 skip (redmine_tags test); rspec 164 examples, 0 failures |
+| subtask before `f9bf1e7` (7.0) | parent author 2 -> 3, created_on 2026-10-10 -> 2020-01-02; after: parent unchanged |
+| e2e, production mode | 5.1: 78 screenshots, 6.1: 78, 7.0: 82; 0 problems each (not re-committed: no page changed, the run went to a scratch folder) |
+| Ruby 2.7 syntax | 50 files, 0 errors |
+| OpenAI review `ae192d4..ba3f880` (same diff as `f9bf1e7`, only the author was reset) | `docs/reviews/openai-2026-10-13-ba3f880.md`: no findings |
+| not done | the 5.1 rollout gate itself (session B reruns it); `main` still at `ae192d4`, without these two fixes |
 
 After the decision of 2026-10-13 (5.1, 6.1 and 7.0), PostgreSQL 16.15, branch at `d0572f6` plus the e2e caption fix:
 
@@ -174,6 +191,13 @@ Since 2026-10-13 the same scenarios run on 5.1-stable and 6.1-stable too; their 
 issue-overrides and webhooks exist only on 7.0, `webhooks-none-before-7` only on 5.1/6.1).
 
 ## Observations not fixed (minor, pre-existing)
+
+- Journal and attachment overrides are still written after save to every journal or attachment saved
+  in the request (`f9bf1e7` scoped only the issue overrides). A request that closes duplicates writes
+  journals on them, which would get the imported `user_id`/`created_on`; not seen in an import, not fixed.
+- On 5.1/6.1 `init_journal` and `send_notification` are still prepended; a plugin that alias_method-chains
+  either after this one would loop the same way (redmine_tags does not; the 5.1 gate runs the
+  production plugin set).
 
 Found in the screenshot review of 2026-10-13, the same on 5.1, 6.1 and 7.0 (scenarios and plugin
 unchanged by this work, so recorded, not fixed):
