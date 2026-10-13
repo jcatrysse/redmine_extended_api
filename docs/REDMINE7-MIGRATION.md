@@ -82,8 +82,8 @@ Own plugin: all of it is GEOxyz code, so there is nothing to re-apply. While mig
 
 Actions the person doing the upgrade must take, or know about, for this plugin:
 
-- No migrations, no settings, no files. Deploy the branch and restart. `main` gets this branch by a
-  normal merge once the 5.1 rerun is green and Jan gives the go (q5). The plugin runs on Redmine 5.1, 6.1 and 7.0
+- No migrations, no settings, no files. Deploy the branch and restart. `main` has this branch since
+  2026-10-13 (merge `9a10043`, q5). The plugin runs on Redmine 5.1, 6.1 and 7.0
   (decision 2026-10-13); on 5.1 and 6.1 there are no webhooks, so the webhook part of notify=false does nothing there.
 - notify=false / send_notification=0 on /extended_api now also suppresses the Redmine 7 webhooks of that
   request (decision q2): systems fed by webhooks do not see imports made that way.
@@ -213,7 +213,12 @@ Answers of 2026-10-13 to the points taken while waiting (through the coordinator
 - **redmine_extended_api-q4**, oldest Ruby: production 5.1 runs Ruby 3.1 or newer. The run on 3.2.6
   plus the Ruby 2.7 parser check is enough; no extra Ruby runs.
 - **redmine_extended_api-q5**, where the 5.1 version runs: merge `redmine70-migration` into `main`,
-  but not now. **Decided, waiting for the 5.1 rerun.** Conditions: session B's 5.1 baseline rerun with
+  but not now. **Merged on 2026-10-13 on Jan's direct instruction, before session B's 5.1 rerun**
+  (`9a10043`, normal merge, main `132fff5` was an ancestor, no conflicts). Tests on the merged
+  `main`, PostgreSQL 16.15: 5.1-stable minitest 31 runs, 0 failures, 7 skips, rspec 161/0;
+  6.1-stable 31 runs, 0 failures, 7 skips, rspec 161/0; 7.0-stable-GEOxyz 31 runs, 125 assertions,
+  0 failures, 0 skips, rspec 161/0. e2e not repeated: the merged tree is identical to
+  `redmine70-migration` at `9ee0d3c`, whose e2e runs are under "Results". Original conditions: session B's 5.1 baseline rerun with
   redmine_extended_api `redmine70-migration` is green, and Jan gives an explicit go through the
   coordinator. The 2026-10-07 rule "nothing to main" is lifted for that one merge only. When the go
   comes: a normal merge, no force-push, tests re-run on the merged `main`.
