@@ -54,6 +54,7 @@ has a test that fails without it. Since 2026-10-13 (decision of Jan) every run i
 | `d0572f6` | DELETE of a tracker in use on 5.1 answered only "Unable to delete tracker" (5.1 has no `error_can_not_delete_tracker_html`); now core 5.1's `error_can_not_delete_tracker`. Test fails on 5.1 without it. | e2e on 5.1 |
 | `22e3eb8` | On 5.1 with redmine_tags (master) every POST /issues.json was a 500, SystemStackError: this plugin prepended `Issue#safe_attributes=`, redmine_tags loads after it and alias_method-chains the same method, so super looped (0 of 426 issues in session B's 5.1 gate). Issue and Attachment no longer override `safe_attributes=`; the issue overrides are set in `before_validation`, only on the issue the update names. Rspec with an alias chain fails without it (SystemStackError); integration test next to redmine_tags. | 5.1 rollout gate (session B) |
 | `f9bf1e7` | A subtask created through /extended_api with author_id/created_on overwrote the author and created_on of its parent (the after_save override ran for every issue saved in the request; parent recalculation saves the parent). Now only the issue the request creates or updates. Integration test fails without it. | own review of `22e3eb8` |
+| `161fa52` | No core method is overridden any more: `init_journal` and `send_notification` were still prepended (same loop risk next to a later alias_method chain on 5.1/6.1). notify=false now sets `notify = false` in `before_save` (core's `send_notification` checks `notify?`); journal overrides are set on the new journal in `before_validation`. Journal and attachment overrides only on their own record: the journal the request writes on the issue it updates, the attachment the upload creates (closing an issue gave the journals of its closed duplicates the imported user and date). Tests fail without it. Decided overnight, for Jan to confirm. | coordinator, overnight 2026-10-13 |
 
 ## Work list for the migration session
 
@@ -99,6 +100,19 @@ Actions the person doing the upgrade must take, or know about, for this plugin:
 - REST API stays required (Administration > Settings > **Integrations** on Redmine 7, the tab was "API").
 
 ## Results
+
+After `161fa52` (overnight 2026-10-13, PostgreSQL 16.15):
+
+| run | result |
+|---|---|
+| tests, 5.1-stable | minitest 34 runs, 96 assertions, 0 failures, 0 errors, 8 skips; rspec 167 examples, 0 failures |
+| tests, 6.1-stable | minitest 34 runs, 109 assertions, 0 failures, 0 errors, 8 skips; rspec 167 examples, 0 failures |
+| tests, 7.0-stable-GEOxyz | minitest 34 runs, 134 assertions, 0 failures, 0 errors, 1 skip; rspec 167 examples, 0 failures |
+| the same tests on the lib of `96fe96a` (7.0) | rspec 17 failures (among them SystemStackError with an alias_method chain on init_journal and on send_notification, journal on another issue, existing attachment); duplicates integration test: expected user 1 |
+| with redmine_tags master on 5.1 | not run again: this session's permission check refused running external plugin code; session B2's 5.1 gate with the production plugin set covers it |
+| e2e, production mode | 5.1: 78 screenshots, 6.1: 78, 7.0: 82; 0 problems each (notifications and webhooks scenarios included; not re-committed, no page changed) |
+| Ruby 2.7 syntax | 50 files, 0 errors |
+| OpenAI review of `161fa52` | `docs/reviews/openai-2026-10-13-161fa52.md`: no findings |
 
 After `22e3eb8` and `f9bf1e7` (2026-10-13, PostgreSQL 16.15):
 
@@ -192,12 +206,8 @@ issue-overrides and webhooks exist only on 7.0, `webhooks-none-before-7` only on
 
 ## Observations not fixed (minor, pre-existing)
 
-- Journal and attachment overrides are still written after save to every journal or attachment saved
-  in the request (`f9bf1e7` scoped only the issue overrides). A request that closes duplicates writes
-  journals on them, which would get the imported `user_id`/`created_on`; not seen in an import, not fixed.
-- On 5.1/6.1 `init_journal` and `send_notification` are still prepended; a plugin that alias_method-chains
-  either after this one would loop the same way (redmine_tags does not; the 5.1 gate runs the
-  production plugin set).
+- (Fixed in `161fa52`: journal and attachment overrides on other records; `init_journal` and
+  `send_notification` prepended.)
 
 Found in the screenshot review of 2026-10-13, the same on 5.1, 6.1 and 7.0 (scenarios and plugin
 unchanged by this work, so recorded, not fixed):
@@ -289,6 +299,16 @@ For this plugin:
    in `6704885`; kept.
 
 ## Open questions for Jan
+
+Decided overnight (2026-10-13), for Jan to confirm:
+- **redmine_extended_api-q7**, how the plugin coexists with other plugins on 5.1/6.1: it overrides
+  no core method at all (no prepend, no alias_method on safe_attributes=, init_journal,
+  send_notification); everything goes through model callbacks (`before_validation`, `before_save`,
+  `after_save`), which do not interfere with other plugins' method chains. Alternative not taken:
+  keep prepend and defer it until after all plugins load (fragile, depends on load order).
+- **redmine_extended_api-q8**, scope of the import overrides: only the record the request creates or
+  updates (the issue, its new journal, the uploaded attachment), never other records saved along with
+  it (parent, duplicates, related issues). notify=false keeps silencing every mail of the request.
 
 - None. q4 to q6 were answered on 2026-10-13, see "Decided by Jan".
 
