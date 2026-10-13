@@ -13,30 +13,22 @@ module RedmineExtendedApi
       ISSUE_OVERRIDE_ATTRIBUTES  = %i[author_id created_on updated_on closed_on].freeze
       JOURNAL_OVERRIDE_ATTRIBUTES = %i[user_id created_on updated_on updated_by_id].freeze
 
-      included do
+      # Prepended (Issue.prepend), not alias_method: other plugins patch safe_attributes= too,
+      # and an alias_method chain on a method someone prepends recurses.
+      prepended do
         class_attribute :extended_api_issue_override_attributes, instance_accessor: false
         self.extended_api_issue_override_attributes ||= ISSUE_OVERRIDE_ATTRIBUTES
-
-        unless method_defined?(:safe_attributes_without_extended_api=)
-          alias_method :safe_attributes_without_extended_api=, :safe_attributes=
-          alias_method :safe_attributes=, :safe_attributes_with_extended_api=
-        end
-
-        unless method_defined?(:init_journal_without_extended_api)
-          alias_method :init_journal_without_extended_api, :init_journal
-          alias_method :init_journal, :init_journal_with_extended_api
-        end
 
         after_save :apply_extended_api_issue_overrides_after_save
       end
 
-      def safe_attributes_with_extended_api=(attrs, user = (defined?(User) ? User.current : nil))
-        send(:safe_attributes_without_extended_api=, attrs, user)
+      def safe_attributes=(attrs, user = (defined?(User) ? User.current : nil))
+        super
         apply_extended_api_issue_overrides(user)
       end
 
-      def init_journal_with_extended_api(user, notes = '')
-        init_journal_without_extended_api(user, notes).tap do |journal|
+      def init_journal(user, notes = '')
+        super.tap do |journal|
           apply_extended_api_journal_overrides_on_init(journal, user)
         end
       end
@@ -96,8 +88,12 @@ module RedmineExtendedApi
         return if cols.empty?
 
         Thread.current[:redmine_extended_api_applying_issue_overrides] = true
-        update_columns(cols)
+        # Not update_columns: since Rails 7.1 it adds "lock_version = <in memory value>" to the
+        # WHERE, and on create the nested set callbacks have already bumped lock_version in the
+        # database, so the update hit no row and the overrides were silently lost.
+        self.class.where(id: id).update_all(cols)
         assign_attributes(cols)
+        clear_attribute_changes(cols.keys)
       ensure
         Thread.current[:redmine_extended_api_applying_issue_overrides] = nil
       end

@@ -102,6 +102,18 @@ module RedmineExtendedApi
 
       private
 
+      # Core's before_action renders the HTML "select the type" page when params[:type] is
+      # missing or unknown, which answered an API create with 200 and HTML.
+      def build_new_custom_field
+        if extended_api_request? && CustomField.new_subclass_instance(params[:type]).nil?
+          return render_api_error_message(
+            "#{I18n.t(:field_type)} #{I18n.t('activerecord.errors.messages.invalid')}"
+          )
+        end
+
+        super
+      end
+
       def assign_filtered_attributes(custom_field)
         attributes = filtered_custom_field_params(custom_field)
         return if attributes.empty?

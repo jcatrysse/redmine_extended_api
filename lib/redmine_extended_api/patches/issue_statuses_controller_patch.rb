@@ -72,7 +72,15 @@ module RedmineExtendedApi
 
         issue_status = IssueStatus.find(params[:id])
 
-        if issue_status.destroy
+        begin
+          destroyed = issue_status.destroy
+        rescue RuntimeError => e
+          # IssueStatus#check_integrity raises while issues or trackers still use the status
+          issue_status.errors.add(:base, I18n.t(:error_unable_delete_issue_status, value: e.message))
+          return render_api_validation_errors(issue_status)
+        end
+
+        if destroyed
           mark_extended_api_response(fallback: false)
           head :no_content
         else

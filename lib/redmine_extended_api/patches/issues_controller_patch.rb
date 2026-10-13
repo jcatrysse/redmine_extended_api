@@ -18,12 +18,14 @@ module RedmineExtendedApi
 
       def create
         return super unless extended_api_request?
+        return if render_invalid_extended_api_overrides
 
         with_extended_api_issue_context { super }
       end
 
       def update
         return super unless extended_api_request?
+        return if render_invalid_extended_api_overrides
 
         with_extended_api_issue_context { super }
       end
@@ -64,11 +66,7 @@ module RedmineExtendedApi
           Thread.current[:redmine_extended_api_suppress_notifications] = true
         end
 
-        if suppress_notifications && defined?(Mailer)
-          Mailer.with_deliveries(false) { yield }
-        else
-          yield
-        end
+        yield
 
       ensure
         Thread.current[:redmine_extended_api_issue_overrides] = previous_overrides
@@ -77,6 +75,18 @@ module RedmineExtendedApi
         if disable_issue_timestamps && defined?(Issue) && Issue.respond_to?(:record_timestamps=)
           Issue.record_timestamps = previous_issue_record_timestamps
         end
+      end
+
+      # Refuses the request (422) when an admin sends an override that cannot be stored.
+      def render_invalid_extended_api_overrides
+        return false unless allow_extended_api_overrides?
+
+        errors = extended_api_override_errors(extract_issue_override_attributes) +
+                 extended_api_override_errors(extract_journal_override_attributes)
+        return false if errors.empty?
+
+        render_api_error_message(errors.uniq)
+        true
       end
 
       def allow_extended_api_overrides?
@@ -167,7 +177,9 @@ module RedmineExtendedApi
         return unless defined?(@issue) && @issue
 
         if @issue.respond_to?(:current_journal) && @issue.current_journal
-          return @issue.current_journal
+          # an update that changes nothing saves no journal: answer like core (204), not with
+          # an unsaved journal without id
+          return @issue.current_journal.persisted? ? @issue.current_journal : nil
         end
 
         return unless @issue.respond_to?(:journals)

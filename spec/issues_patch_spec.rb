@@ -89,6 +89,8 @@ RSpec.describe RedmineExtendedApi::Patches::IssuesControllerPatch do
                                   'redmine_extended_api.original_script_name' => '',
                                   'redmine_extended_api.original_path_info' => '/extended_api/issues.json'
                                 })
+    Time.zone = 'UTC'
+    allow(controller).to receive(:extended_api_user_exists?).and_return(true)
   end
 
   after do
@@ -104,7 +106,8 @@ RSpec.describe RedmineExtendedApi::Patches::IssuesControllerPatch do
   it 'wraps create with notification suppression and timestamp control' do
     controller.params = {issue: {author_id: 5, created_on: '2020-01-01', closed_on: '2020-03-03'}, notify: '0'}
 
-    expect(Mailer).to receive(:with_deliveries).with(false).and_yield
+    # thread-local suppression only; Mailer.with_deliveries switched mail off for every thread
+    expect(Mailer).not_to receive(:with_deliveries)
 
     expect(controller.create).to eq(:base_create)
     expect(controller.thread_snapshot).to eq(author_id: 5, created_on: '2020-01-01', closed_on: '2020-03-03')
@@ -174,7 +177,7 @@ RSpec.describe RedmineExtendedApi::Patches::IssuePatch do
       def safe_attributes=(attrs, user = nil)
         @safe_attributes_payload = attrs
       end
-      end.tap { |klass| klass.include described_class }
+      end.tap { |klass| klass.prepend described_class }
     end
 
   let(:issue) { issue_class.new }
