@@ -82,7 +82,8 @@ Own plugin: all of it is GEOxyz code, so there is nothing to re-apply. While mig
 
 Actions the person doing the upgrade must take, or know about, for this plugin:
 
-- No migrations, no settings, no files. Deploy the branch and restart. The plugin runs on Redmine 5.1, 6.1 and 7.0
+- No migrations, no settings, no files. Deploy the branch and restart. `main` gets this branch by a
+  normal merge once the 5.1 rerun is green and Jan gives the go (q5). The plugin runs on Redmine 5.1, 6.1 and 7.0
   (decision 2026-10-13); on 5.1 and 6.1 there are no webhooks, so the webhook part of notify=false does nothing there.
 - notify=false / send_notification=0 on /extended_api now also suppresses the Redmine 7 webhooks of that
   request (decision q2): systems fed by webhooks do not see imports made that way.
@@ -208,6 +209,16 @@ unchanged by this work, so recorded, not fixed):
 Recorded 2026-10-07 from `docs/DECISIONS-2026-10-07.md` (Jan's answers in the coordinating session);
 notes verbatim. Final.
 
+Answers of 2026-10-13 to the points taken while waiting (through the coordinator):
+- **redmine_extended_api-q4**, oldest Ruby: production 5.1 runs Ruby 3.1 or newer. The run on 3.2.6
+  plus the Ruby 2.7 parser check is enough; no extra Ruby runs.
+- **redmine_extended_api-q5**, where the 5.1 version runs: merge `redmine70-migration` into `main`,
+  but not now. **Decided, waiting for the 5.1 rerun.** Conditions: session B's 5.1 baseline rerun with
+  redmine_extended_api `redmine70-migration` is green, and Jan gives an explicit go through the
+  coordinator. The 2026-10-07 rule "nothing to main" is lifted for that one merge only. When the go
+  comes: a normal merge, no force-push, tests re-run on the merged `main`.
+- **redmine_extended_api-q6**: yes, on 5.1 and 6.1 notify=false only silences mail, and that is enough.
+
 For this plugin (2026-10-13), replacing "Redmine 7 only" of 2026-10-07 below:
 - Compatible with Redmine 5.1, 6.1 and 7.0: the webhook patch only when `::Webhook` is defined,
   requires_redmine 5.1, the 5.1 test paths removed in `d6013b3` restored, Ruby syntax valid on the
@@ -244,17 +255,7 @@ For this plugin:
 
 ## Open questions for Jan
 
-Taken by me on 2026-10-13 while waiting (the most likely option), asked through the coordinator:
-
-- **redmine_extended_api-q4**, oldest Ruby. Redmine 5.1 allows Ruby 2.7 to 3.2, so the syntax is
-  checked against Ruby 2.7 (parser gem), and the 5.1 runs use Ruby 3.2.6. Not run on a real Ruby
-  2.7/3.0/3.1. Open: is 2.7 the floor, or does the 5.1 that needs this plugin run 3.x?
-- **redmine_extended_api-q5**, where the 5.1 version runs. Nothing goes to `main` (decision
-  2026-10-07, "nothing is cherry-picked to main", not revoked). If the Jira import needs the plugin
-  on the current 5.1 production before Redmine 7, `redmine70-migration` (or a tag of it) can be
-  deployed there as is. Open: deploy this branch on 5.1, or merge to `main`?
-- **redmine_extended_api-q6**, notify=false on 5.1/6.1 silences mail only (there are no webhooks).
-  Taken as self-evident; noted under "After the upgrade".
+- None. q4 to q6 were answered on 2026-10-13, see "Decided by Jan".
 
 ## Not testable here
 
