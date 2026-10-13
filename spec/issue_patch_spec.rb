@@ -148,42 +148,17 @@ RSpec.describe RedmineExtendedApi::Patches::IssuePatch do
     expect(issue.notify).to be(false)
   end
 
-  it 'applies journal overrides on init_journal for admins (pre-save on journal instance)' do
+  # The journal overrides and notify=false are set on the journal itself (JournalPatch,
+  # NotificationSuppressionPatch, see their specs); init_journal stays core's.
+  it 'leaves init_journal to core' do
     User.current = admin_user
-    Thread.current[:redmine_extended_api_journal_overrides] = {
-      user_id: 9,
-      updated_by_id: 4,
-      created_on: '2020-02-01',
-      updated_on: '2020-02-02'
-    }
+    Thread.current[:redmine_extended_api_journal_overrides] = { user_id: 9 }
 
     issue.init_journal(admin_user, 'note')
 
+    expect(described_class.instance_methods).not_to include(:init_journal)
     expect(issue.init_journal_args).to eq([admin_user, 'note'])
-    expect(issue.current_journal.attributes).to eq(
-                                                  user_id: 9,
-                                                  updated_by_id: 4,
-                                                  created_on: '2020-02-01',
-                                                  updated_on: '2020-02-02'
-                                                )
-  end
-
-  it 'does not apply journal overrides on init_journal for non-admin users' do
-    User.current = non_admin_user
-    Thread.current[:redmine_extended_api_journal_overrides] = { user_id: 9, updated_on: '2020-02-02' }
-
-    issue.init_journal(non_admin_user, 'note')
-
     expect(issue.current_journal.attributes).to eq({})
-  end
-
-  it 'sets notify=false for journals when suppression flag is set for any user' do
-    User.current = non_admin_user
-    Thread.current[:redmine_extended_api_suppress_notifications] = true
-
-    issue.init_journal(non_admin_user, 'note')
-
-    expect(issue.current_journal.notify).to be(false)
   end
 
   it 'forces issue timestamps and author after save with update_all on the id only, for admins' do
@@ -285,7 +260,7 @@ RSpec.describe RedmineExtendedApi::Patches::IssuePatch do
 
     expect(issue.safe_attributes_payload).to eq(subject: 'New')
     expect(issue.assigned_attributes).to eq(author_id: 3)
-    expect(issue.current_journal.attributes).to eq(user_id: 9)
+    expect(issue.current_journal.attributes).to eq({}) # JournalPatch sets them, before validation
     expect(issue.other_calls).to eq(%i[safe_attributes init_journal])
     expect(klass).to be_a(Class)
   end
@@ -352,6 +327,41 @@ RSpec.describe RedmineExtendedApi::Patches::IssuePatch do
     issue.send(:apply_extended_api_issue_overrides_after_save)
 
     expect(issue_class.update_all_calls).to be_empty
+  end
+
+  # The same for init_journal: when this patch prepended it, a later alias_method chain recursed.
+  it 'works next to a plugin that alias_method chains init_journal after the prepend' do
+    base = Class.new do
+      attr_reader :current_journal
+
+      def self.class_attribute(name, **)
+        singleton_class.class_eval { attr_accessor name }
+      end
+
+      def self.after_save(_callback = nil); end
+
+      def self.before_validation(_callback = nil); end
+
+      def init_journal(_user, notes = '')
+        @current_journal ||= Journal.new.tap { |j| j.assign_attributes(notes: notes) }
+      end
+    end
+    base.prepend(described_class)
+    base.class_eval do
+      def init_journal_with_other(user, notes = '')
+        (@other_calls ||= []) << :init_journal
+        init_journal_without_other(user, notes)
+      end
+      alias_method :init_journal_without_other, :init_journal
+      alias_method :init_journal, :init_journal_with_other
+      attr_reader :other_calls
+    end
+    User.current = admin_user
+
+    issue = base.new
+    expect { issue.init_journal(admin_user, 'note') }.not_to raise_error
+    expect(issue.other_calls).to eq(%i[init_journal])
+    expect(issue.current_journal.attributes).to eq(notes: 'note')
   end
 
   it 'leaves other issues saved in the same request alone' do

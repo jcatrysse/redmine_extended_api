@@ -33,7 +33,7 @@ RSpec.describe RedmineExtendedApi::Patches::IssuesControllerPatch do
         @journal_snapshot = Thread.current[:redmine_extended_api_journal_overrides]
 
         # Simuleer hoe Redmine een notificatie triggert
-        Issue.new.send(:send_notification)
+        Issue.new.save
 
         :base_create
       end
@@ -43,7 +43,7 @@ RSpec.describe RedmineExtendedApi::Patches::IssuesControllerPatch do
         @journal_snapshot = Thread.current[:redmine_extended_api_journal_overrides]
 
         # Simuleer notificatie op journal (notes)
-        Journal.new.send(:send_notification)
+        Journal.new.save
 
         :base_update
       end
@@ -62,6 +62,8 @@ RSpec.describe RedmineExtendedApi::Patches::IssuesControllerPatch do
     User.current = admin_user
 
     stub_const('Issue', Class.new do
+      include FakeNotifyingRecord
+
       class << self
         attr_accessor :record_timestamps, :record_timestamps_calls
       end
@@ -83,11 +85,13 @@ RSpec.describe RedmineExtendedApi::Patches::IssuesControllerPatch do
       end
 
       def send_notification
-        self.class.instance_variable_set(:@notif_calls, self.class.notif_calls + 1)
+        self.class.instance_variable_set(:@notif_calls, self.class.notif_calls + 1) if notify?
       end
     end)
 
     stub_const('Journal', Class.new do
+      include FakeNotifyingRecord
+
       class << self
         attr_accessor :record_timestamps, :record_timestamps_calls
       end
@@ -109,7 +113,7 @@ RSpec.describe RedmineExtendedApi::Patches::IssuesControllerPatch do
       end
 
       def send_notification
-        self.class.instance_variable_set(:@notif_calls, self.class.notif_calls + 1)
+        self.class.instance_variable_set(:@notif_calls, self.class.notif_calls + 1) if notify?
       end
     end)
 
@@ -119,8 +123,8 @@ RSpec.describe RedmineExtendedApi::Patches::IssuesControllerPatch do
       end
     end)
 
-    Issue.prepend RedmineExtendedApi::Patches::NotificationSuppressionPatch
-    Journal.prepend RedmineExtendedApi::Patches::NotificationSuppressionPatch
+    Issue.include RedmineExtendedApi::Patches::NotificationSuppressionPatch
+    Journal.include RedmineExtendedApi::Patches::NotificationSuppressionPatch
 
     controller.request = double('Request', env: {
       'redmine_extended_api.original_script_name' => '',

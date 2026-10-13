@@ -249,13 +249,13 @@ RSpec.describe RedmineExtendedApi::Patches::IssuePatch do
     expect(issue.assigned_attributes).to be_nil
   end
 
-  it 'applies journal overrides when initialising a journal as an admin' do
+  it 'leaves init_journal to core (journal overrides: JournalPatch)' do
     User.current = admin_user
     Thread.current[:redmine_extended_api_journal_overrides] = {user_id: 9, updated_by_id: 4, updated_on: '2020-02-02'}
 
     issue.init_journal(admin_user, 'note')
 
     expect(issue.init_journal_args).to eq([admin_user, 'note'])
-    expect(issue.current_journal.attributes).to eq(user_id: 9, updated_by_id: 4, updated_on: '2020-02-02')
+    expect(issue.current_journal.attributes).to eq({})
   end
 end

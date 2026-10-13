@@ -121,6 +121,26 @@ class ExtendedApiOverridesTest < Redmine::ApiTest::Base
     assert_equal Time.utc(2021, 1, 1), journal.created_on.utc
   end
 
+  # Closing an issue closes its duplicates, each with a journal of its own; those journals got the
+  # imported user and date too.
+  def test_update_issue_as_admin_leaves_the_journals_of_closed_duplicates_alone
+    duplicate = Issue.find(2)
+    IssueRelation.create!(issue_from: duplicate, issue_to: Issue.find(1), relation_type: 'duplicates')
+
+    put '/extended_api/issues/1.json?notify=false',
+        params: {issue: {status_id: 5, notes: 'closed by import'},
+                 journal: {user_id: 3, created_on: '2021-01-01T00:00:00Z'}},
+        headers: credentials('admin')
+    assert_response :success
+
+    imported = Journal.where(journalized_type: 'Issue', journalized_id: 1).order(:id).last
+    assert_equal [3, Time.utc(2021, 1, 1)], [imported.user_id, imported.created_on.utc]
+    assert duplicate.reload.closed?
+    closing = Journal.where(journalized_type: 'Issue', journalized_id: 2).order(:id).last
+    assert_equal 1, closing.user_id
+    assert closing.created_on > 1.hour.ago
+  end
+
   def test_upload_attachment_as_admin_persists_author_and_created_on
     set_tmp_attachments_directory
     post '/extended_api/uploads.json?filename=import.txt&attachment[author_id]=2&attachment[created_on]=2019-09-09T09:09:09Z',

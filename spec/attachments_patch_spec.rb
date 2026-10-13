@@ -135,6 +135,17 @@ RSpec.describe RedmineExtendedApi::Patches::AttachmentPatch do
       def update_columns_calls
         @update_columns_calls ||= []
       end
+
+      attr_writer :new_record
+
+      # the attachment the upload creates
+      def new_record?
+        @new_record != false
+      end
+
+      def saved_change_to_id?
+        new_record?
+      end
     end.tap { |klass| klass.prepend described_class }
   end
 
@@ -182,6 +193,18 @@ RSpec.describe RedmineExtendedApi::Patches::AttachmentPatch do
     attachment_class.run_before_validation_callbacks(attachment)
 
     expect(attachment.assigned_attributes).to eq(created_on: '2020-03-03')
+  end
+
+  it 'leaves an attachment the request did not create alone' do
+    User.current = admin_user
+    Thread.current[:redmine_extended_api_attachment_overrides] = { author_id: 3, created_on: '2020-03-03 12:00:00' }
+    existing = attachment_class.new.tap { |a| a.new_record = false }
+
+    attachment_class.run_before_validation_callbacks(existing)
+    attachment_class.run_after_save_callbacks(existing)
+
+    expect(existing.assigned_attributes).to be_nil
+    expect(existing.update_columns_calls).to be_empty
   end
 
   it 'forces author_id and created_on after save using update_columns for admins' do

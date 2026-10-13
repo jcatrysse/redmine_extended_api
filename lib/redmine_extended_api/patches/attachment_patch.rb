@@ -24,7 +24,10 @@ module RedmineExtendedApi
 
       private
 
+      # only the attachment the request creates (the upload), not one saved along with it
       def apply_extended_api_attachment_overrides_callback
+        return unless new_record?
+
         apply_extended_api_attachment_overrides(defined?(User) ? User.current : nil)
       end
 
@@ -45,6 +48,7 @@ module RedmineExtendedApi
 
       def apply_extended_api_attachment_overrides_after_save
         return if Thread.current[:redmine_extended_api_applying_attachment_overrides]
+        return unless saved_change_to_id?
 
         overrides = Thread.current[:redmine_extended_api_attachment_overrides]
         return unless overrides.is_a?(Hash)

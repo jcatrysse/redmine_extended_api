@@ -11,24 +11,18 @@ module RedmineExtendedApi
       include ApiHelpers
 
       ISSUE_OVERRIDE_ATTRIBUTES  = %i[author_id created_on updated_on closed_on].freeze
-      JOURNAL_OVERRIDE_ATTRIBUTES = %i[user_id created_on updated_on updated_by_id].freeze
 
-      # Prepended (Issue.prepend), not alias_method. safe_attributes= is not overridden at all:
-      # on Redmine 5.1/6.1 plugins loaded after this one (redmine_tags) alias_method it, and an
-      # alias_method chain on a prepended method recurses (stack level too deep). The issue
-      # overrides are set before validation instead, on the issue the request updates.
+      # Prepended (Issue.prepend), not alias_method, and no core method is overridden
+      # (safe_attributes=, init_journal): on Redmine 5.1/6.1 plugins loaded after this one
+      # (redmine_tags) alias_method them, and an alias_method chain on a prepended method recurses
+      # (stack level too deep). The issue overrides are set before validation instead, on the
+      # issue the request updates; the journal overrides in JournalPatch.
       prepended do
         class_attribute :extended_api_issue_override_attributes, instance_accessor: false
         self.extended_api_issue_override_attributes ||= ISSUE_OVERRIDE_ATTRIBUTES
 
         before_validation :apply_extended_api_issue_overrides_before_validation
         after_save :apply_extended_api_issue_overrides_after_save
-      end
-
-      def init_journal(user, notes = '')
-        super.tap do |journal|
-          apply_extended_api_journal_overrides_on_init(journal, user)
-        end
       end
 
       private
@@ -68,22 +62,6 @@ module RedmineExtendedApi
         # Ensure notify=false is persisted to avoid enqueuing mail jobs via ActiveJob/Sidekiq
         if Thread.current[:redmine_extended_api_suppress_notifications] && respond_to?(:notify=)
           self.notify = false
-        end
-      end
-
-      # Pre-save: set imported values on the journal instance that Issue just created
-      def apply_extended_api_journal_overrides_on_init(journal, user)
-        return unless journal.respond_to?(:assign_attributes)
-
-        overrides = Thread.current[:redmine_extended_api_journal_overrides]
-        if overrides.is_a?(Hash) && allow_extended_api_overrides?(user)
-          permitted = overrides.slice(*JOURNAL_OVERRIDE_ATTRIBUTES).compact
-          journal.assign_attributes(permitted) unless permitted.empty?
-        end
-
-        # Ensure journal notifications are suppressed when requested
-        if Thread.current[:redmine_extended_api_suppress_notifications] && journal.respond_to?(:notify=)
-          journal.notify = false
         end
       end
 

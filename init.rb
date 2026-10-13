@@ -32,11 +32,11 @@ AttachmentsController.prepend RedmineExtendedApi::Patches::AttachmentsController
 CustomFieldsController.prepend RedmineExtendedApi::Patches::CustomFieldsControllerPatch
 EnumerationsController.prepend RedmineExtendedApi::Patches::EnumerationsControllerPatch
 Issue.prepend RedmineExtendedApi::Patches::IssuePatch
-Issue.prepend RedmineExtendedApi::Patches::NotificationSuppressionPatch
+Issue.include RedmineExtendedApi::Patches::NotificationSuppressionPatch
 IssueRelationsController.prepend RedmineExtendedApi::Patches::IssueRelationsControllerPatch
 IssuesController.prepend RedmineExtendedApi::Patches::IssuesControllerPatch
 IssueStatusesController.prepend RedmineExtendedApi::Patches::IssueStatusesControllerPatch
-Journal.prepend RedmineExtendedApi::Patches::NotificationSuppressionPatch
+Journal.include RedmineExtendedApi::Patches::NotificationSuppressionPatch
 Journal.include RedmineExtendedApi::Patches::JournalPatch
 ActionMailer::Base.register_interceptor(RedmineExtendedApi::MailSuppressionInterceptor)
 RolesController.prepend RedmineExtendedApi::Patches::RolesControllerPatch
