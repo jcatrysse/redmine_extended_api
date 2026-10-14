@@ -307,6 +307,12 @@ and merge parents kept). Proof: `git diff` old/new tip empty, every commit has t
 as before, 0 mentions of Claude/anthropic/session links in 127245e..HEAD. Old tip `33d7bf2`, new tip
 `f57664b`; hashes quoted in this file and the review file names were updated to the new ones.
 
+Merged into `main` on 2026-10-14 on Jan's go, after the rewrite and after session B2's green 5.1 gate:
+`main` fast-forwarded from `132fff5` to `8a21e81` (no force; the branch already holds the merge
+`bb6b92c` with `132fff5` as first parent, so no new commit was needed). Tests on that tree, PostgreSQL
+16.15: 5.1-stable minitest 34 runs, 0 failures, 8 skips, rspec 167/0; 6.1-stable 34 runs, 0 failures,
+8 skips, rspec 167/0; 7.0-stable-GEOxyz 34 runs, 134 assertions, 0 failures, 1 skip, rspec 167/0.
+
 ## Open questions for Jan
 
 Decided overnight (2026-10-13), for Jan to confirm:
