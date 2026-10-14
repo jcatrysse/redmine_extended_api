@@ -45,16 +45,16 @@ has a test that fails without it. Since 2026-10-13 (decision of Jan) every run i
 | `900d3f2` | Proxy dropped the parsed form but left `rack.request.form_input`: every form encoded POST/PUT through /extended_api was a 500 on Redmine 5.1 (Rack 2). JSON was fine. | tests on 5.1 |
 | `1df0d59`, `7d3dee7` | Test kit: PostgreSQL provisioning as root; file mail delivery only for the server env (it leaked into the test env and made "no mail" tests pass vacuously). | setup |
 | `c49144c`, `b79769a`, `bf7bc7c` | Tests run on 5.1 too; tolerate plugins that widen core permissions (redmine_editauthor); review fix. | 5.1 run, together run, OpenAI review |
-| `894db78` | Issue, Journal and Attachment patched with `prepend` instead of `alias_method` (Jan's general decision; the old send_notification chain recursed next to redmine_stealth). | decision 2026-10-07 |
-| `2987761` | notify=false / send_notification=0 also silences the Redmine 7 webhooks of the request (decision q2). | decision 2026-10-07 |
-| `d6013b3` | requires_redmine 7.0 (init.rb patches Webhook); 5.1-only test paths removed. | decision 2026-10-07 |
-| `fbe490a` | e2e scenario `webhooks.mjs`; final e2e run, 82 screenshots. | |
+| `034db21` | Issue, Journal and Attachment patched with `prepend` instead of `alias_method` (Jan's general decision; the old send_notification chain recursed next to redmine_stealth). | decision 2026-10-07 |
+| `439c863` | notify=false / send_notification=0 also silences the Redmine 7 webhooks of the request (decision q2). | decision 2026-10-07 |
+| `3ffb921` | requires_redmine 7.0 (init.rb patches Webhook); 5.1-only test paths removed. | decision 2026-10-07 |
+| `2ab2eec` | e2e scenario `webhooks.mjs`; final e2e run, 82 screenshots. | |
 | `4c7729a`, `22c630d` | End to end scenarios (test/e2e) and screenshots (docs/e2e). | |
-| `20079da` | Redmine 5.1, 6.1 and 7.0 again (decision 2026-10-13): requires_redmine 5.1; Webhook patch only `if defined?(::Webhook)` (without it 5.1 does not boot: `init.rb:45: uninitialized constant Webhook (NameError)`); the 5.1 test paths of `d6013b3` restored, the webhook tests skip without Webhook; e2e: Settings tab "API" before 7.0, webhook checks only on 7.0. | decision 2026-10-13 |
-| `d0572f6` | DELETE of a tracker in use on 5.1 answered only "Unable to delete tracker" (5.1 has no `error_can_not_delete_tracker_html`); now core 5.1's `error_can_not_delete_tracker`. Test fails on 5.1 without it. | e2e on 5.1 |
-| `22e3eb8` | On 5.1 with redmine_tags (master) every POST /issues.json was a 500, SystemStackError: this plugin prepended `Issue#safe_attributes=`, redmine_tags loads after it and alias_method-chains the same method, so super looped (0 of 426 issues in session B's 5.1 gate). Issue and Attachment no longer override `safe_attributes=`; the issue overrides are set in `before_validation`, only on the issue the update names. Rspec with an alias chain fails without it (SystemStackError); integration test next to redmine_tags. | 5.1 rollout gate (session B) |
-| `f9bf1e7` | A subtask created through /extended_api with author_id/created_on overwrote the author and created_on of its parent (the after_save override ran for every issue saved in the request; parent recalculation saves the parent). Now only the issue the request creates or updates. Integration test fails without it. | own review of `22e3eb8` |
-| `161fa52` | No core method is overridden any more: `init_journal` and `send_notification` were still prepended (same loop risk next to a later alias_method chain on 5.1/6.1). notify=false now sets `notify = false` in `before_save` (core's `send_notification` checks `notify?`); journal overrides are set on the new journal in `before_validation`. Journal and attachment overrides only on their own record: the journal the request writes on the issue it updates, the attachment the upload creates (closing an issue gave the journals of its closed duplicates the imported user and date). Tests fail without it. Decided overnight, for Jan to confirm. | coordinator, overnight 2026-10-13 |
+| `e0273e9` | Redmine 5.1, 6.1 and 7.0 again (decision 2026-10-13): requires_redmine 5.1; Webhook patch only `if defined?(::Webhook)` (without it 5.1 does not boot: `init.rb:45: uninitialized constant Webhook (NameError)`); the 5.1 test paths of `3ffb921` restored, the webhook tests skip without Webhook; e2e: Settings tab "API" before 7.0, webhook checks only on 7.0. | decision 2026-10-13 |
+| `e6a565e` | DELETE of a tracker in use on 5.1 answered only "Unable to delete tracker" (5.1 has no `error_can_not_delete_tracker_html`); now core 5.1's `error_can_not_delete_tracker`. Test fails on 5.1 without it. | e2e on 5.1 |
+| `e07b397` | On 5.1 with redmine_tags (master) every POST /issues.json was a 500, SystemStackError: this plugin prepended `Issue#safe_attributes=`, redmine_tags loads after it and alias_method-chains the same method, so super looped (0 of 426 issues in session B's 5.1 gate). Issue and Attachment no longer override `safe_attributes=`; the issue overrides are set in `before_validation`, only on the issue the update names. Rspec with an alias chain fails without it (SystemStackError); integration test next to redmine_tags. | 5.1 rollout gate (session B) |
+| `3b734fd` | A subtask created through /extended_api with author_id/created_on overwrote the author and created_on of its parent (the after_save override ran for every issue saved in the request; parent recalculation saves the parent). Now only the issue the request creates or updates. Integration test fails without it. | own review of `e07b397` |
+| `e4fbf3d` | No core method is overridden any more: `init_journal` and `send_notification` were still prepended (same loop risk next to a later alias_method chain on 5.1/6.1). notify=false now sets `notify = false` in `before_save` (core's `send_notification` checks `notify?`); journal overrides are set on the new journal in `before_validation`. Journal and attachment overrides only on their own record: the journal the request writes on the issue it updates, the attachment the upload creates (closing an issue gave the journals of its closed duplicates the imported user and date). Tests fail without it. Decided overnight, for Jan to confirm. | coordinator, overnight 2026-10-13 |
 
 ## Work list for the migration session
 
@@ -73,7 +73,7 @@ In this order: things that break, security, the GEOxyz changes, the open items, 
 
 4. Run the plugin's whole test suite on Redmine 7.0-stable-GEOxyz with PostgreSQL (MariaDB and 5.1 no longer required, decision 2026-10-07). **DONE**, numbers under "Results".
 7. Jan's decisions of 2026-10-07 (prepend, webhooks with notify=false, Redmine 7 only). **DONE**, see "Decided by Jan". "Redmine 7 only" replaced on 2026-10-13, see item 8.
-8. Decision of 2026-10-13: compatible with Redmine 5.1, 6.1 and 7.0 (webhook patch only when `::Webhook` is defined, requires_redmine 5.1, 5.1 test paths of `d6013b3` back, Ruby syntax valid on the oldest supported Ruby). Tests and e2e on 5.1-stable, 6.1-stable and 7.0-stable-GEOxyz with PostgreSQL. **DONE** `20079da`, `d0572f6`; numbers under "Results".
+8. Decision of 2026-10-13: compatible with Redmine 5.1, 6.1 and 7.0 (webhook patch only when `::Webhook` is defined, requires_redmine 5.1, 5.1 test paths of `3ffb921` back, Ruby syntax valid on the oldest supported Ruby). Tests and e2e on 5.1-stable, 6.1-stable and 7.0-stable-GEOxyz with PostgreSQL. **DONE** `e0273e9`, `e6a565e`; numbers under "Results".
 5. Check Redmine 7 webhooks against this plugin (see "Rules"), and note the result here even if nothing is needed. **DONE**: the issue payload is rendered in `after_*_commit`, after the plugin's `after_save` wrote the overrides, so `issue.created`/`issue.updated` carry the imported author and dates, equal to the database (integration test + real webhook received in the e2e run, screenshot `issue-overrides-webhook-payloads`). An unparseable override date used to make the webhook payload raise (500 after commit): fixed by `f175456`. notify=false does not suppress webhooks (mail only): see open question 2.
 6. Verify every feature of the plugin by hand on a running Redmine 7 (screenshots). **DONE**, see "Inventory of functions".
 
@@ -86,7 +86,7 @@ Own plugin: all of it is GEOxyz code, so there is nothing to re-apply. While mig
 Actions the person doing the upgrade must take, or know about, for this plugin:
 
 - No migrations, no settings, no files. Deploy the branch and restart. `main` had this branch from
-  merge `9a10043` until it was set back to `132fff5` the same day (see q5). The plugin runs on Redmine 5.1, 6.1 and 7.0
+  merge `bb6b92c` until it was set back to `132fff5` the same day (see q5). The plugin runs on Redmine 5.1, 6.1 and 7.0
   (decision 2026-10-13); on 5.1 and 6.1 there are no webhooks, so the webhook part of notify=false does nothing there.
 - notify=false / send_notification=0 on /extended_api now also suppresses the Redmine 7 webhooks of that
   request (decision q2): systems fed by webhooks do not see imports made that way.
@@ -101,21 +101,21 @@ Actions the person doing the upgrade must take, or know about, for this plugin:
 
 ## Results
 
-After `161fa52` (overnight 2026-10-13, PostgreSQL 16.15):
+After `e4fbf3d` (overnight 2026-10-13, PostgreSQL 16.15):
 
 | run | result |
 |---|---|
 | tests, 5.1-stable | minitest 34 runs, 96 assertions, 0 failures, 0 errors, 8 skips; rspec 167 examples, 0 failures |
 | tests, 6.1-stable | minitest 34 runs, 109 assertions, 0 failures, 0 errors, 8 skips; rspec 167 examples, 0 failures |
 | tests, 7.0-stable-GEOxyz | minitest 34 runs, 134 assertions, 0 failures, 0 errors, 1 skip; rspec 167 examples, 0 failures |
-| the same tests on the lib of `96fe96a` (7.0) | rspec 17 failures (among them SystemStackError with an alias_method chain on init_journal and on send_notification, journal on another issue, existing attachment); duplicates integration test: expected user 1 |
+| the same tests on the lib of `fb12e9a` (7.0) | rspec 17 failures (among them SystemStackError with an alias_method chain on init_journal and on send_notification, journal on another issue, existing attachment); duplicates integration test: expected user 1 |
 | with redmine_tags master on 5.1 | not run again: this session's permission check refused running external plugin code; session B2's 5.1 gate with the production plugin set covers it |
 | e2e, production mode | 5.1: 78 screenshots, 6.1: 78, 7.0: 82; 0 problems each (notifications and webhooks scenarios included; not re-committed, no page changed) |
 | Ruby 2.7 syntax | 50 files, 0 errors |
-| OpenAI review of `161fa52` | `docs/reviews/openai-2026-10-13-161fa52.md`: no findings |
-| 5.1 rollout gate (session B2, production plugin set, branch at `c806a17`) | GREEN: full fresh run GEOS+SIS+OAC, verify 22 checks 0 failures, script results equal to `main` `132fff5`, no SystemStackError in the puma log (reported by the coordinator, 2026-10-13) |
+| OpenAI review of `e4fbf3d` | `docs/reviews/openai-2026-10-13-e4fbf3d.md`: no findings |
+| 5.1 rollout gate (session B2, production plugin set, branch at `fa15866`) | GREEN: full fresh run GEOS+SIS+OAC, verify 22 checks 0 failures, script results equal to `main` `132fff5`, no SystemStackError in the puma log (reported by the coordinator, 2026-10-13) |
 
-After `22e3eb8` and `f9bf1e7` (2026-10-13, PostgreSQL 16.15):
+After `e07b397` and `3b734fd` (2026-10-13, PostgreSQL 16.15):
 
 | run | result |
 |---|---|
@@ -124,13 +124,13 @@ After `22e3eb8` and `f9bf1e7` (2026-10-13, PostgreSQL 16.15):
 | tests, 5.1-stable (without redmine_tags: running the whole suite with it again was refused by this session's permission check) | minitest 33 runs, 91 assertions, 0 failures, 0 errors, 8 skips (webhooks, redmine_tags test); rspec 164 examples, 0 failures |
 | tests, 6.1-stable | minitest 33 runs, 104 assertions, 0 failures, 0 errors, 8 skips; rspec 164 examples, 0 failures |
 | tests, 7.0-stable-GEOxyz | minitest 33 runs, 129 assertions, 0 failures, 0 errors, 1 skip (redmine_tags test); rspec 164 examples, 0 failures |
-| subtask before `f9bf1e7` (7.0) | parent author 2 -> 3, created_on 2026-10-10 -> 2020-01-02; after: parent unchanged |
+| subtask before `3b734fd` (7.0) | parent author 2 -> 3, created_on 2026-10-10 -> 2020-01-02; after: parent unchanged |
 | e2e, production mode | 5.1: 78 screenshots, 6.1: 78, 7.0: 82; 0 problems each (not re-committed: no page changed, the run went to a scratch folder) |
 | Ruby 2.7 syntax | 50 files, 0 errors |
-| OpenAI review `ae192d4..ba3f880` (same diff as `f9bf1e7`, only the author was reset) | `docs/reviews/openai-2026-10-13-ba3f880.md`: no findings |
-| not done | the 5.1 rollout gate itself (session B reruns it); `main` still at `ae192d4`, without these two fixes |
+| OpenAI review `af4c8e7..3b734fd` | `docs/reviews/openai-2026-10-13-3b734fd.md`: no findings |
+| not done | the 5.1 rollout gate itself (session B reruns it); `main` still at `af4c8e7`, without these two fixes |
 
-After the decision of 2026-10-13 (5.1, 6.1 and 7.0), PostgreSQL 16.15, branch at `d0572f6` plus the e2e caption fix:
+After the decision of 2026-10-13 (5.1, 6.1 and 7.0), PostgreSQL 16.15, branch at `e6a565e` plus the e2e caption fix:
 
 | run | result |
 |---|---|
@@ -143,7 +143,7 @@ After the decision of 2026-10-13 (5.1, 6.1 and 7.0), PostgreSQL 16.15, branch at
 | e2e 6.1-stable, production mode | smoke + core + 12 scenarios, 78 screenshots, 0 problems (`docs/e2e/redmine-6.1/`) |
 | e2e 7.0-stable-GEOxyz, production mode | smoke + core + 12 scenarios, 82 screenshots, 0 problems (`docs/e2e/`) |
 | screenshots looked at | all 238 opened (by me and three review agents, one per version) against their captions: no 500, no error page, no wrong user, every HTTP code as captioned. One caption of this change promised more than it showed (webhooks-none-before-7: the 404 was not in the picture): split into two screenshots. The rest are older, minor and identical on all three versions; listed under "Observations not fixed". |
-| OpenAI review | `docs/reviews/openai-2026-10-13-bfb2c31.md` (diff 77fb802..bfb2c31): no findings |
+| OpenAI review | `docs/reviews/openai-2026-10-13-4dcfaa8.md` (diff 6224d94..4dcfaa8): no findings |
 | own review | the guard only decides whether the Webhook patch is prepended; on 7.0 behaviour is unchanged (webhook tests green, webhooks e2e 0 problems). The tracker fallback only changes the message where the _html key is missing (5.1). No findings. |
 | not run | MariaDB (decision 2026-10-07: PostgreSQL only); together with the other GEOxyz plugins on 5.1/6.1 (their 5.1/6.1 state is not part of this task) |
 
@@ -155,7 +155,7 @@ After Jan's decisions (2026-10-07, PostgreSQL 16.15):
 | tests, with 35 other GEOxyz plugins (all public jcatrysse plugins, redmine70-migration branches) | minitest 31 runs, 122 assertions, 0 failures; rspec 161 examples, 0 failures |
 | e2e, alone, production mode | smoke + core + 12 scenarios, 82 screenshots, 0 problems (`docs/e2e/`) |
 | e2e, with the 35 plugins | issue list and issue page 200. Project > Settings 500: `super: no superclass method project_settings_tabs`, in the ProjectsHelper chain of redmine_mail_digest (`project_settings_tabs_with_issue_digest`, alias_method), redmine_itil_priority, redmine_ai_summary and others; this plugin does not patch ProjectsHelper. Our scenarios: differences only from other plugins (redmine_editauthor sets author_id, redmine_view_issue_description refuses reporter); the webhook checks of the old issue-overrides scenario failed there because it imported with notify=false, which now silences webhooks by decision, fixed in the scenario. |
-| OpenAI review of the new commits | `docs/reviews/openai-2026-10-07-fbe490a.md`: no findings |
+| OpenAI review of the new commits | `docs/reviews/openai-2026-10-07-2ab2eec.md`: no findings |
 | own review of the new commits | prepend keeps behaviour and visibility (send_notification private like core); the webhook skip only acts while the request's thread-local flag is set, which ends in the controller's ensure; core path unchanged. No findings. |
 
 Before (2026-10-06):
@@ -207,7 +207,7 @@ issue-overrides and webhooks exist only on 7.0, `webhooks-none-before-7` only on
 
 ## Observations not fixed (minor, pre-existing)
 
-- (Fixed in `161fa52`: journal and attachment overrides on other records; `init_journal` and
+- (Fixed in `e4fbf3d`: journal and attachment overrides on other records; `init_journal` and
   `send_notification` prepended.)
 
 Found in the screenshot review of 2026-10-13, the same on 5.1, 6.1 and 7.0 (scenarios and plugin
@@ -249,14 +249,14 @@ Answers of 2026-10-13 to the points taken while waiting (through the coordinator
   plus the Ruby 2.7 parser check is enough; no extra Ruby runs.
 - **redmine_extended_api-q5**, where the 5.1 version runs: merge `redmine70-migration` into `main`,
   but not now. **Merged on 2026-10-13 on Jan's direct instruction, before session B's 5.1 rerun**
-  (`9a10043`, normal merge, main `132fff5` was an ancestor, no conflicts). Tests on the merged
+  (`bb6b92c`, normal merge, main `132fff5` was an ancestor, no conflicts). Tests on the merged
   `main`, PostgreSQL 16.15: 5.1-stable minitest 31 runs, 0 failures, 7 skips, rspec 161/0;
   6.1-stable 31 runs, 0 failures, 7 skips, rspec 161/0; 7.0-stable-GEOxyz 31 runs, 125 assertions,
   0 failures, 0 skips, rspec 161/0. e2e not repeated: the merged tree is identical to
-  `redmine70-migration` at `9ee0d3c`, whose e2e runs are under "Results". **Set back the same day**
+  `redmine70-migration` at `20f5e42`, whose e2e runs are under "Results". **Set back the same day**
   on Jan's instruction, after session B's 5.1 gate was red (SystemStackError next to redmine_tags,
-  fixed in `22e3eb8`): `main` = `132fff5` again, what production runs, with
-  `git push --force-with-lease=main:ae192d4 origin 132fff5:refs/heads/main`. The next merge into
+  fixed in `e07b397`): `main` = `132fff5` again, what production runs, with
+  `git push --force-with-lease=main:af4c8e7 origin 132fff5:refs/heads/main`. The next merge into
   `main` comes after B's 5.1 gate is green on this branch and Jan's own go; the identity rewrite of
   this branch (author/committer Jan, trailers removed, review files renamed) is done once, right
   before that merge. Original conditions: session B's 5.1 baseline rerun with
@@ -267,21 +267,21 @@ Answers of 2026-10-13 to the points taken while waiting (through the coordinator
 
 For this plugin (2026-10-13), replacing "Redmine 7 only" of 2026-10-07 below:
 - Compatible with Redmine 5.1, 6.1 and 7.0: the webhook patch only when `::Webhook` is defined,
-  requires_redmine 5.1, the 5.1 test paths removed in `d6013b3` restored, Ruby syntax valid on the
+  requires_redmine 5.1, the 5.1 test paths removed in `3ffb921` restored, Ruby syntax valid on the
   oldest supported Ruby; tests and e2e on 5.1-stable, 6.1-stable and 7.0-stable-GEOxyz with
   PostgreSQL. (Context: jcatrysse/jira2redmine_migration, docs/MIGRATION-PLAN.md, work list 4.)
-  Done: `20079da`, `d0572f6`.
+  Done: `e0273e9`, `e6a565e`.
 
 General, for every GEOxyz plugin (2026-10-07):
 - GEOxyz goes straight to Redmine 7: no backports to 5.1, nothing is cherry-picked to `main`;
   `redmine70-migration` goes live with Redmine 7. 5.1 compatibility is no longer required and no code
-  path exists only for 5.1. Done here: `d6013b3` (requires_redmine 7.0, 5.1-only test paths removed).
+  path exists only for 5.1. Done here: `3ffb921` (requires_redmine 7.0, 5.1-only test paths removed).
   **For this plugin replaced on 2026-10-13** (see above): 5.1, 6.1 and 7.0 again.
 - Production runs PostgreSQL 16 only; tests and e2e run on PostgreSQL. MariaDB runs are no longer
   required (the earlier MariaDB results below are kept as history).
 - deface without a version constraint: n.v.t., this plugin does not use deface.
 - Core methods other plugins also patch are patched with `prepend`, never `alias_method`. Done:
-  `894db78` (Issue#safe_attributes=, Issue#init_journal, Attachment#safe_attributes=,
+  `034db21` (Issue#safe_attributes=, Issue#init_journal, Attachment#safe_attributes=,
   Issue/Journal#send_notification; redmine_stealth prepends send_notification, which made the old
   chain recurse). With 35 other GEOxyz plugins installed: issue list and issue page 200; Project >
   Settings 500, but not from this plugin (see "Together").
@@ -293,11 +293,19 @@ For this plugin:
    rijen meer in de database.). Already built in `f175456`; kept.
 2. **redmine_extended_api-q2**, should notify=false also silence webhooks? Jan chose B: "Ook webhooks
    stilleggen" (Imports blijven onzichtbaar voor gekoppelde systemen, die daardoor kunnen afwijken van
-   Redmine.). Built in `2987761` (Webhook.trigger prepended, skipped while the request's suppression
+   Redmine.). Built in `439c863` (Webhook.trigger prepended, skipped while the request's suppression
    flag is set), test `extended_api_webhooks_test.rb`, e2e `webhooks.mjs`.
 3. **redmine_extended_api-q3**, issue update without changes. Jan chose A: "204, zoals Redmine zelf (zo
    laten)" (Gelijk aan de gewone Redmine-API; het oude antwoord bevatte niets bruikbaars.). Already built
    in `6704885`; kept.
+
+## Branch history rewrite (2026-10-14)
+
+On Jan's instruction, once before the merge into `main`: every commit after `127245e` got author and
+committer Jan Catrysse and lost its Co-Authored-By/Claude-Session trailers (`git filter-branch`, dates
+and merge parents kept). Proof: `git diff` old/new tip empty, every commit has the same tree and dates
+as before, 0 mentions of Claude/anthropic/session links in 127245e..HEAD. Old tip `33d7bf2`, new tip
+`f57664b`; hashes quoted in this file and the review file names were updated to the new ones.
 
 ## Open questions for Jan
 

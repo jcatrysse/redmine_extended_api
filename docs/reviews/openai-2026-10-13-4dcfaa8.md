@@ -1,6 +1,6 @@
-# OpenAI review fbe490a
+# OpenAI review 4dcfaa8
 
-Model `gpt-5`, range `1b1bb70..fbe490a`, 22 file(s), 1 request(s), 23264 tokens.
+Model `gpt-5`, range `6224d94..4dcfaa8`, 15 file(s), 1 request(s), 21560 tokens.
 
 Add a `Resolution:` line under every finding: fixed in <commit>, or why not.
 
