@@ -161,6 +161,43 @@ module RedmineExtendedApi
         nil
       end
 
+      # skip_journal (decision 37 of the Jira migration, 2026-10-15): an admin's import
+      # post-processing on /extended_api leaves no journal (issue update, "Subtask added" on the
+      # parent, relation journals) and no edit trace (updated_on of the issues it saves, updated_on
+      # and updated_by of a journal it rewrites). Same values as notify, the other way round.
+      def extended_api_skip_journal_requested?
+        return false unless respond_to?(:params, true) && params
+
+        value = params[:skip_journal]
+        value == true || %w[true 1 on yes].include?(value.to_s.strip.downcase)
+      end
+
+      def extended_api_skip_journal_allowed?
+        User.current.respond_to?(:admin?) && User.current.admin?
+      end
+
+      # A non-admin asking for skip_journal is refused (403) instead of getting journals it asked
+      # not to write.
+      def render_refused_extended_api_skip_journal
+        return false unless extended_api_skip_journal_requested?
+        return false if extended_api_skip_journal_allowed?
+
+        render_api_error_message(I18n.t(:notice_not_authorized), status: 403)
+        true
+      end
+
+      # Sets the request's skip_journal flag for the block; read by IssuePatch and JournalPatch.
+      def with_extended_api_skip_journal
+        previous = Thread.current[:redmine_extended_api_skip_journal]
+        if extended_api_skip_journal_requested? && extended_api_skip_journal_allowed?
+          Thread.current[:redmine_extended_api_skip_journal] = true
+        end
+
+        yield
+      ensure
+        Thread.current[:redmine_extended_api_skip_journal] = previous
+      end
+
       def extended_api_suppress_notifications?(params_hash)
         return false unless params_hash
 

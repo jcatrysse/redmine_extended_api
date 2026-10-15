@@ -14,6 +14,8 @@ RSpec.describe RedmineExtendedApi::Patches::JournalPatch do
 
       def self.before_validation(_callback = nil); end
 
+      def self.before_save(_callback = nil, **); end
+
       attr_writer :journalized_id, :new_record
 
       # a new journal on issue 42, saved by this request
@@ -67,6 +69,7 @@ RSpec.describe RedmineExtendedApi::Patches::JournalPatch do
   after do
     Thread.current[:redmine_extended_api_journal_overrides] = nil
     Thread.current[:redmine_extended_api_issue_target_id] = nil
+    Thread.current[:redmine_extended_api_skip_journal] = nil
   end
 
   # the request updates issue 42
@@ -137,5 +140,38 @@ RSpec.describe RedmineExtendedApi::Patches::JournalPatch do
     journal.send(:apply_extended_api_journal_overrides_after_save)
 
     expect(journal.update_columns_calls).to be_empty
+  end
+
+  # skip_journal: Issue#create_journal, create_parent_issue_journal and the relation journals all
+  # end in Journal#save, which stops here
+  it 'stops a new journal from being saved while skip_journal is set' do
+    Thread.current[:redmine_extended_api_skip_journal] = true
+
+    expect(catch(:abort) { journal.send(:skip_extended_api_journal); :saved }).to be_nil
+  end
+
+  it 'lets journals be saved without skip_journal, and existing ones with it' do
+    expect(catch(:abort) { journal.send(:skip_extended_api_journal); :saved }).to eq(:saved)
+
+    Thread.current[:redmine_extended_api_skip_journal] = true
+    existing = journal_class.new.tap { |j| j.new_record = false }
+    expect(catch(:abort) { existing.send(:skip_extended_api_journal); :saved }).to eq(:saved)
+  end
+
+  it 'puts updated_on and updated_by back after a journal edit with skip_journal' do
+    edited = journal_class.new
+    old_time = Time.utc(2019, 4, 5)
+    edited.define_singleton_method(:saved_change_to_id?) { false }
+    edited.define_singleton_method(:saved_change_to_updated_on?) { true }
+    edited.define_singleton_method(:saved_change_to_updated_by_id?) { true }
+    edited.define_singleton_method(:updated_on_before_last_save) { old_time }
+    edited.define_singleton_method(:updated_by_id_before_last_save) { 2 }
+
+    edited.send(:keep_extended_api_journal_edit_metadata)
+    expect(edited.update_columns_calls).to be_empty
+
+    Thread.current[:redmine_extended_api_skip_journal] = true
+    edited.send(:keep_extended_api_journal_edit_metadata)
+    expect(edited.update_columns_calls).to eq([{updated_on: old_time, updated_by_id: 2}])
   end
 end

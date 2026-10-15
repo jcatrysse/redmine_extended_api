@@ -12,6 +12,7 @@ require_relative 'lib/redmine_extended_api/patches/issue_relations_controller_pa
 require_relative 'lib/redmine_extended_api/patches/issue_statuses_controller_patch'
 require_relative 'lib/redmine_extended_api/patches/issues_controller_patch'
 require_relative 'lib/redmine_extended_api/patches/journal_patch'
+require_relative 'lib/redmine_extended_api/patches/journals_controller_patch'
 require_relative 'lib/redmine_extended_api/patches/notification_suppression_patch'
 require_relative 'lib/redmine_extended_api/patches/roles_controller_patch'
 require_relative 'lib/redmine_extended_api/patches/trackers_controller_patch'
@@ -38,6 +39,7 @@ IssuesController.prepend RedmineExtendedApi::Patches::IssuesControllerPatch
 IssueStatusesController.prepend RedmineExtendedApi::Patches::IssueStatusesControllerPatch
 Journal.include RedmineExtendedApi::Patches::NotificationSuppressionPatch
 Journal.include RedmineExtendedApi::Patches::JournalPatch
+JournalsController.include RedmineExtendedApi::Patches::JournalsControllerPatch
 ActionMailer::Base.register_interceptor(RedmineExtendedApi::MailSuppressionInterceptor)
 RolesController.prepend RedmineExtendedApi::Patches::RolesControllerPatch
 TrackersController.prepend RedmineExtendedApi::Patches::TrackersControllerPatch

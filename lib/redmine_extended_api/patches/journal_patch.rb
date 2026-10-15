@@ -20,12 +20,37 @@ module RedmineExtendedApi
 
         before_validation :apply_extended_api_journal_overrides_before_validation
         after_save :apply_extended_api_journal_overrides_after_save
+        # before every other save callback: core's own (split_private_notes) and other plugins'
+        before_save :skip_extended_api_journal, prepend: true
+        after_save :keep_extended_api_journal_edit_metadata
       end
 
       private
 
       def allow_extended_api_overrides?(user)
         user.respond_to?(:admin?) && user.admin?
+      end
+
+      # skip_journal (admin only, see ApiHelpers): no journal is stored while the request's flag
+      # is set. A callback, not an override of Issue#create_journal, create_parent_issue_journal
+      # or IssueRelation#init_journals (see IssuePatch): each of them ends in Journal#save, which
+      # returns false here and is not checked by core.
+      def skip_extended_api_journal
+        throw :abort if new_record? && Thread.current[:redmine_extended_api_skip_journal]
+      end
+
+      # skip_journal on PUT /extended_api/journals/:id: the notes change, the journal is not
+      # marked as edited (updated_on, updated_by as before).
+      def keep_extended_api_journal_edit_metadata
+        return unless Thread.current[:redmine_extended_api_skip_journal]
+        return if saved_change_to_id?
+
+        cols = {}
+        cols[:updated_on] = updated_on_before_last_save if saved_change_to_updated_on?
+        cols[:updated_by_id] = updated_by_id_before_last_save if saved_change_to_updated_by_id?
+        return if cols.empty?
+
+        update_columns(cols)
       end
 
       def extended_api_journal_override_target?

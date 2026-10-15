@@ -19,6 +19,7 @@ module RedmineExtendedApi
       def create
         return super unless extended_api_request?
         return if render_invalid_extended_api_overrides
+        return if render_refused_extended_api_skip_journal
 
         with_extended_api_issue_context { super }
       end
@@ -26,6 +27,8 @@ module RedmineExtendedApi
       def update
         return super unless extended_api_request?
         return if render_invalid_extended_api_overrides
+        return if render_refused_extended_api_skip_journal
+        return if render_extended_api_notes_without_journal
 
         # the issue the update assigns its attributes to (on create it is built before this)
         with_extended_api_issue_context(params[:id]) { super }
@@ -69,7 +72,7 @@ module RedmineExtendedApi
           Thread.current[:redmine_extended_api_suppress_notifications] = true
         end
 
-        yield
+        with_extended_api_skip_journal { yield }
 
       ensure
         Thread.current[:redmine_extended_api_issue_overrides] = previous_overrides
@@ -90,6 +93,18 @@ module RedmineExtendedApi
         return false if errors.empty?
 
         render_api_error_message(errors.uniq)
+        true
+      end
+
+      # Notes are content, not a trace: with skip_journal they would be dropped with the journal
+      # that holds them, so the request is refused (422) instead of losing them silently.
+      def render_extended_api_notes_without_journal
+        return false unless extended_api_skip_journal_requested? && params[:issue].respond_to?(:key?)
+        return false if params[:issue][:notes].blank? && params[:issue][:private_notes].blank?
+
+        render_api_error_message(
+          "#{I18n.t(:field_notes)} #{I18n.t('activerecord.errors.messages.invalid', default: 'is invalid')}"
+        )
         true
       end
 

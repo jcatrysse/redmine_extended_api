@@ -23,6 +23,7 @@ module RedmineExtendedApi
 
         before_validation :apply_extended_api_issue_overrides_before_validation
         after_save :apply_extended_api_issue_overrides_after_save
+        after_save :keep_extended_api_issue_updated_on
       end
 
       private
@@ -92,6 +93,29 @@ module RedmineExtendedApi
         clear_attribute_changes(cols.keys)
       ensure
         Thread.current[:redmine_extended_api_applying_issue_overrides] = nil
+      end
+
+      # skip_journal: an issue saved again by the request (the update itself, a parent getting
+      # its "Subtask added" or recalculated, a rescheduled follower) keeps its updated_on. Core
+      # moves it to now whenever a journal is started (force_updated_on_change); the journal is
+      # not stored (JournalPatch), so neither is the time. An updated_on override of the request
+      # wins on the issue it updates.
+      def keep_extended_api_issue_updated_on
+        return unless Thread.current[:redmine_extended_api_skip_journal]
+        return if saved_change_to_id? || !saved_change_to_updated_on?
+        return if extended_api_issue_updated_on_overridden?
+
+        previous = updated_on_before_last_save
+        return if previous.nil?
+
+        self.class.where(id: id).update_all(updated_on: previous)
+        self.updated_on = previous
+        clear_attribute_changes([:updated_on])
+      end
+
+      def extended_api_issue_updated_on_overridden?
+        overrides = Thread.current[:redmine_extended_api_issue_overrides]
+        overrides.is_a?(Hash) && overrides[:updated_on].present? && extended_api_override_target?
       end
     end
   end

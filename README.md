@@ -73,6 +73,12 @@ The extended API keeps the native responses from Redmine's issue endpoints while
 - Preserve journal provenance when importing by supplying `journal[created_on]`,`journal[user_id]`, `journal[updated_on]`, or `journal[updated_by_id]` in extended issue requests. Admin-only overrides are applied to the generated journal entry while temporarily disabling journal timestamp updates to respect the provided values.
 - Override values that cannot be stored are refused with `422` and nothing is saved: a time that does not parse (`"Created is invalid"`) or a user id that does not exist (`"Author is invalid"`, `"User is invalid"`).
 - Successful issue updates that create a journal entry return the journal payload when routed through `/extended_api`, making it easy to confirm the resulting notes and metadata.
+- Leave no trace of technical post-processing by passing `skip_journal=true` (or `1`, `yes`, `on`; top-level, next to `notify`, in the query string or the JSON body). Admin only, `/extended_api` only; everything else of the request behaves as without it (validations, the overrides above, `notify=false`). While it is set:
+  - an issue create or update stores no journal (the update answers `204`), a parent gets no "Subtask added", creating or deleting a relation stores no journal on either issue, and no watcher is added through a journal;
+  - every issue the request saves keeps its `updated_on` (the issue it updates, a parent, a rescheduled issue), unless the request sends its own `updated_on` override, which wins;
+  - `PUT /extended_api/journals/:id.json` changes the notes but keeps the journal's `updated_on` and `updated_by`, so it is not shown as edited.
+
+  A non-admin sending it gets `403` (`"You are not authorized to access this page."`) and nothing is changed. An issue update with `skip_journal` and `notes` (or `private_notes`) is refused with `422` (`"Notes is invalid"`): notes live in a journal and would be lost. `skip_journal=false`/`0` is the normal request. On the core path the parameter changes nothing.
 
 ### Attachment-specific utilities
 
@@ -119,6 +125,20 @@ The extended API keeps the native responses from Redmine's issue endpoints while
       "details": []
     }
   }
+  ```
+
+- Second pass of an import: rewrite the description, set the parent and link two issues, then rewrite an imported comment, without a journal, an "Edited" mark or a new `updated_on`:
+
+  ```bash
+  curl -X PUT -H "Content-Type: application/json" -H "X-Redmine-API-Key: <admin token>" \
+    -d '{"issue":{"description":"See #124","parent_issue_id":120},"notify":false,"skip_journal":true}' \
+    https://redmine.example.com/extended_api/issues/123.json            # 204
+  curl -X POST -H "Content-Type: application/json" -H "X-Redmine-API-Key: <admin token>" \
+    -d '{"relation":{"issue_to_id":124,"relation_type":"relates"},"notify":false,"skip_journal":true}' \
+    https://redmine.example.com/extended_api/issues/123/relations.json  # 201
+  curl -X PUT -H "Content-Type: application/json" -H "X-Redmine-API-Key: <admin token>" \
+    -d '{"journal":{"notes":"Imported comment, see #124"},"skip_journal":true}' \
+    https://redmine.example.com/extended_api/journals/456.json          # 204
   ```
 
 - Create a relation without notifying watchers (extended API variant of the [core relations endpoint](https://www.redmine.org/projects/redmine/wiki/Rest_issuerelations)):

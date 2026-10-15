@@ -9,12 +9,14 @@ module RedmineExtendedApi
 
       def create
         return super unless extended_api_request?
+        return if render_refused_extended_api_skip_journal
 
         with_extended_api_relation_context { super }
       end
 
       def destroy
         return super unless extended_api_request?
+        return if render_refused_extended_api_skip_journal
 
         with_extended_api_relation_context { super }
       end
@@ -28,7 +30,7 @@ module RedmineExtendedApi
 
         Thread.current[:redmine_extended_api_suppress_notifications] = true if suppress_notifications
 
-        yield
+        with_extended_api_skip_journal { yield }
       ensure
         Thread.current[:redmine_extended_api_suppress_notifications] = previous_suppression
       end
