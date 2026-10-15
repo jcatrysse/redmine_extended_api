@@ -107,6 +107,7 @@ After `506603c` (skip_journal, 2026-10-15, PostgreSQL 16.15):
 
 | run | result |
 |---|---|
+| with the 44 GEOxyz plugins, 7.0-stable-GEOxyz 71b9479 (coordinator) | on `8e7096c` 1 failure (non-admin test, redmine_view_issue_description refuses jsmith); test guard `ecc7dde`; then minitest 51 runs, 215 assertions, 0 failures, 1 skip; rspec 170 examples, 0 failures |
 | tests, 5.1-stable (5.1.13, Ruby 3.2.6) | minitest 51 runs, 162 assertions, 0 failures, 0 errors, 8 skips; rspec 170 examples, 0 failures |
 | tests, 6.1-stable | minitest 51 runs, 191 assertions, 0 failures, 0 errors, 8 skips; rspec 170 examples, 0 failures |
 | tests, 7.0-stable-GEOxyz | minitest 51 runs, 216 assertions, 0 failures, 0 errors, 1 skip; rspec 170 examples, 0 failures |
@@ -262,6 +263,21 @@ unchanged by this work, so recorded, not fixed):
 Recorded 2026-10-07 from `docs/DECISIONS-2026-10-07.md` (Jan's answers in the coordinating session);
 notes verbatim. Final.
 
+Answers of 2026-10-15 (multiple choice in the coordinating session): Jan agrees with all four choices made
+while building `skip_journal` (`506603c`); final.
+- **redmine_extended_api-q9**, name and form: `skip_journal`, top-level next to `notify`, in the query
+  string or the JSON body; `true`/`1`/`yes`/`on` switch it on, anything else is the normal request.
+- **redmine_extended_api-q10**, a non-admin sending `skip_journal=true`: refused, `403` with core's
+  "You are not authorized to access this page.", nothing changed. Alternative not taken: ignore the
+  flag silently (the import would not notice it wrote journals).
+- **redmine_extended_api-q11**, `skip_journal` with `notes`/`private_notes` on an issue update: refused,
+  `422` "Notes is invalid", because the notes live in the journal and would be lost. Comments are
+  imported without the flag (with the journal overrides) and rewritten with it through
+  `PUT /extended_api/journals/:id.json`.
+- **redmine_extended_api-q12**, `updated_on`: under the flag every issue the request saves keeps its
+  `updated_on` (the updated issue, a parent recalculated or given "Subtask added", a rescheduled
+  follower), except the issue whose own `updated_on` override the request sends.
+
 Answers of 2026-10-13 to the points taken while waiting (through the coordinator):
 - **redmine_extended_api-q4**, oldest Ruby: production 5.1 runs Ruby 3.1 or newer. The run on 3.2.6
   plus the Ruby 2.7 parser check is enough; no extra Ruby runs.
@@ -379,21 +395,8 @@ Decided overnight (2026-10-13), for Jan to confirm:
   updates (the issue, its new journal, the uploaded attachment), never other records saved along with
   it (parent, duplicates, related issues). notify=false keeps silencing every mail of the request.
 
-Decided while building `skip_journal` (2026-10-15), for Jan to confirm:
-- **redmine_extended_api-q9**, name and form: `skip_journal`, top-level next to `notify`, in the query
-  string or the JSON body; `true`/`1`/`yes`/`on` switch it on, anything else is the normal request.
-- **redmine_extended_api-q10**, a non-admin sending `skip_journal=true`: refused, `403` with core's
-  "You are not authorized to access this page.", nothing changed. Alternative not taken: ignore the
-  flag silently (the import would not notice it wrote journals).
-- **redmine_extended_api-q11**, `skip_journal` with `notes`/`private_notes` on an issue update: refused,
-  `422` "Notes is invalid", because the notes live in the journal and would be lost. Comments are
-  imported without the flag (with the journal overrides) and rewritten with it through
-  `PUT /extended_api/journals/:id.json`.
-- **redmine_extended_api-q12**, `updated_on`: under the flag every issue the request saves keeps its
-  `updated_on` (the updated issue, a parent recalculated or given "Subtask added", a rescheduled
-  follower), except the issue whose own `updated_on` override the request sends.
+- Nothing else: q9 to q12 were answered on 2026-10-15, q4 to q6 on 2026-10-13, see "Decided by Jan".
 
-- q4 to q6 were answered on 2026-10-13, see "Decided by Jan".
 
 ## Not testable here
 
