@@ -13,6 +13,11 @@ class ExtendedApiSkipJournalTest < Redmine::ApiTest::Base
     @delivery_method = ActionMailer::Base.delivery_method
     ActionMailer::Base.delivery_method = :test
     Issue.where(id: [1, 2, 3]).update_all(updated_on: OLD_TIME)
+    # GEOxyz runs redmine_view_issue_description: without its permission jsmith (Manager on
+    # project 1) cannot open issue 1, and the non-admin cases would be refused by that plugin
+    if Redmine::Plugin.installed?(:redmine_view_issue_description)
+      Role.find(1).add_permission!(:view_issue_description)
+    end
   end
 
   def teardown
