@@ -54,6 +54,7 @@ has a test that fails without it. Since 2026-10-13 (decision of Jan) every run i
 | `8244f40` | DELETE of a tracker in use on 5.1 answered only "Unable to delete tracker" (5.1 has no `error_can_not_delete_tracker_html`); now core 5.1's `error_can_not_delete_tracker`. Test fails on 5.1 without it. | e2e on 5.1 |
 | `204c4a8` | On 5.1 with redmine_tags (master) every POST /issues.json was a 500, SystemStackError: this plugin prepended `Issue#safe_attributes=`, redmine_tags loads after it and alias_method-chains the same method, so super looped (0 of 426 issues in session B's 5.1 gate). Issue and Attachment no longer override `safe_attributes=`; the issue overrides are set in `before_validation`, only on the issue the update names. Rspec with an alias chain fails without it (SystemStackError); integration test next to redmine_tags. | 5.1 rollout gate (session B) |
 | `530d2f3` | A subtask created through /extended_api with author_id/created_on overwrote the author and created_on of its parent (the after_save override ran for every issue saved in the request; parent recalculation saves the parent). Now only the issue the request creates or updates. Integration test fails without it. | own review of `204c4a8` |
+| `506603c` | `skip_journal` (decision 37 of the Jira migration, E1/E2, 2026-10-15): admin-only top-level flag on `/extended_api`; no journal for the issue update, no "Subtask added", no relation journals on create/destroy, issues saved keep `updated_on`, `PUT /extended_api/journals/:id` keeps `updated_on`/`updated_by_id`. Non-admin 403, notes with the flag 422. Callbacks and an around_action only. 9 tests fail without it (7.0 and 5.1). | decision 37 |
 | `8d6caab` | No core method is overridden any more: `init_journal` and `send_notification` were still prepended (same loop risk next to a later alias_method chain on 5.1/6.1). notify=false now sets `notify = false` in `before_save` (core's `send_notification` checks `notify?`); journal overrides are set on the new journal in `before_validation`. Journal and attachment overrides only on their own record: the journal the request writes on the issue it updates, the attachment the upload creates (closing an issue gave the journals of its closed duplicates the imported user and date). Tests fail without it. Decided overnight, for Jan to confirm. | coordinator, overnight 2026-10-13 |
 
 ## Work list for the migration session
@@ -97,9 +98,25 @@ Actions the person doing the upgrade must take, or know about, for this plugin:
 - If an import ran with garbage dates before, look for broken rows:
   `Issue.where(created_on: nil)`, `Attachment.where(created_on: nil)`, issues/journals whose
   author_id/user_id has no user.
+- `skip_journal` (2026-10-15) is opt-in per request: nothing to configure; clients that do not send it see no change.
 - REST API stays required (Administration > Settings > **Integrations** on Redmine 7, the tab was "API").
 
 ## Results
+
+After `506603c` (skip_journal, 2026-10-15, PostgreSQL 16.15):
+
+| run | result |
+|---|---|
+| tests, 5.1-stable (5.1.13, Ruby 3.2.6) | minitest 51 runs, 162 assertions, 0 failures, 0 errors, 8 skips; rspec 170 examples, 0 failures |
+| tests, 6.1-stable | minitest 51 runs, 191 assertions, 0 failures, 0 errors, 8 skips; rspec 170 examples, 0 failures |
+| tests, 7.0-stable-GEOxyz | minitest 51 runs, 216 assertions, 0 failures, 0 errors, 1 skip; rspec 170 examples, 0 failures |
+| baseline before the change (7.0) | minitest 34 runs, 134 assertions, 0 failures, 1 skip; rspec 167 examples, 0 failures |
+| new test file without the lib change | 7.0: 17 runs, 9 failures; 5.1: 17 runs, 9 failures (every flag case; the 8 cases without the flag, which pin today's journals, pass) |
+| e2e 7.0-stable-GEOxyz, production mode | smoke + core + 13 scenarios, 89 screenshots, 0 problems; the 7 new `skip-journal-*` screenshots looked at and committed, the others unchanged and not re-committed |
+| e2e 5.1/6.1 | not run for this change (the code paths are the same callbacks; the integration tests run on both) |
+| Ruby 2.7 syntax | 44 files, 0 errors (`Parser::Ruby27`) |
+| OpenAI review `d103a2d..506603c` | `docs/reviews/openai-2026-10-15-506603c.md`: no findings |
+| own review | one fix before the commit: the notes check used `respond_to?(:[])`, a string `issue` param would have raised; now `respond_to?(:key?)`. Seen in the browser: without the flag the update also makes the admin a watcher (core `Journal#add_watcher`); with the flag not, since the journal is not stored. |
 
 After `8d6caab` (overnight 2026-10-13, PostgreSQL 16.15):
 
@@ -194,6 +211,7 @@ exchange and the Redmine page that shows the result.
 | notify=false / send_notification=0 on issues and relations | any API user | `notifications.mjs` | notifications-calls, -mail-count, -quiet-issue |
 | Issue relations create/delete (core permissions, notify=false) | members with manage_issue_relations | `relations.mjs` | relations-create, -issue-page, -refused, -delete, -issue-page-after |
 | notify=false / send_notification=0 silence the Redmine 7 webhooks of the request (decision q2) | any API user; core path untouched; 7.0 only | `webhooks.mjs` | webhooks-webhook, -calls, -received, -quiet-issue; on 5.1/6.1 webhooks-none-before-7, -none-before-7-404 |
+| `skip_journal`: import post-processing without journal or edit trace (issue update, parent, relations, comment rewrite) | admin API; 403 for others, 422 with notes; ignored on the core path | `skip_journal.mjs` | skip-journal-admin, -child-page, -parent-page, -without-flag, -without-flag-page, -refused, -member-page |
 | Show routes only under `/extended_api` (core `/trackers/1.json` etc. 404) | API | in the scenarios above and `smoke.mjs` | smoke-13..15, the -refused screenshots |
 
 Users per scenario: admin (everything), manager (all project permissions, not admin: admin endpoints
@@ -299,6 +317,36 @@ For this plugin:
    laten)" (Gelijk aan de gewone Redmine-API; het oude antwoord bevatte niets bruikbaars.). Already built
    in `615cc1e`; kept.
 
+## skip_journal (decision 37 of the Jira migration, 2026-10-15)
+
+Asked by Jan through the coordinator (jcatrysse/jira2redmine_migration, docs/MIGRATION-PLAN.md, E1 and
+E2): the Jira import must leave no visible trace of its technical post-processing. Built in `506603c`.
+
+Who: admin API users, on `/extended_api` only. Form: top-level `skip_journal=true` (query string or
+JSON body), next to `notify`. Effect while the request runs (thread-local, restored in an ensure):
+
+- `Journal` gets a `before_save` (prepended in the chain) that stops every new journal: the issue
+  update's journal (`Issue#create_journal`), "Subtask added" (`create_parent_issue_journal`), the
+  relation journals (`IssueRelation#init_journals` + `relation_added/removed`). Core ignores the false
+  from `Journal#save` in all three. No core method is overridden (q7).
+- `Issue` gets an `after_save` that writes back `updated_on` of every issue the request saves, unless
+  the request's own `updated_on` override applies to it.
+- `JournalsController` gets an `around_action` on `update` (after `find_journal` and `authorize`);
+  `Journal`'s `after_save` puts `updated_on` and `updated_by_id` back after the edit.
+- Non-admin: 403. With notes on an issue update: 422. `notify=false` is independent and still needed
+  for no mail and no webhooks.
+
+Example (the migration's second pass):
+
+```sh
+curl -X PUT -H 'Content-Type: application/json' -H 'X-Redmine-API-Key: <admin key>' \
+  -d '{"issue":{"description":"See #124","parent_issue_id":120},"notify":false,"skip_journal":true}' \
+  https://redmine.example.com/extended_api/issues/123.json        # 204, no journal
+curl -X PUT -H 'Content-Type: application/json' -H 'X-Redmine-API-Key: <admin key>' \
+  -d '{"journal":{"notes":"Imported comment, see #124"},"skip_journal":true}' \
+  https://redmine.example.com/extended_api/journals/456.json      # 204, not "Edited"
+```
+
 ## Branch history rewrite (2026-10-14)
 
 On Jan's instruction, once before the merge into `main`: every commit after `bf7e6c4` got author and
@@ -331,7 +379,21 @@ Decided overnight (2026-10-13), for Jan to confirm:
   updates (the issue, its new journal, the uploaded attachment), never other records saved along with
   it (parent, duplicates, related issues). notify=false keeps silencing every mail of the request.
 
-- None. q4 to q6 were answered on 2026-10-13, see "Decided by Jan".
+Decided while building `skip_journal` (2026-10-15), for Jan to confirm:
+- **redmine_extended_api-q9**, name and form: `skip_journal`, top-level next to `notify`, in the query
+  string or the JSON body; `true`/`1`/`yes`/`on` switch it on, anything else is the normal request.
+- **redmine_extended_api-q10**, a non-admin sending `skip_journal=true`: refused, `403` with core's
+  "You are not authorized to access this page.", nothing changed. Alternative not taken: ignore the
+  flag silently (the import would not notice it wrote journals).
+- **redmine_extended_api-q11**, `skip_journal` with `notes`/`private_notes` on an issue update: refused,
+  `422` "Notes is invalid", because the notes live in the journal and would be lost. Comments are
+  imported without the flag (with the journal overrides) and rewritten with it through
+  `PUT /extended_api/journals/:id.json`.
+- **redmine_extended_api-q12**, `updated_on`: under the flag every issue the request saves keeps its
+  `updated_on` (the updated issue, a parent recalculated or given "Subtask added", a rescheduled
+  follower), except the issue whose own `updated_on` override the request sends.
+
+- q4 to q6 were answered on 2026-10-13, see "Decided by Jan".
 
 ## Not testable here
 
