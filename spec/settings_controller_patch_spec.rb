@@ -102,6 +102,12 @@ RSpec.describe RedmineExtendedApi::Patches::SettingsControllerPatch do
       display_keys = described_class::SETTINGS_BY_TAB['display']
       expect(display_keys).to include('per_page_options', 'date_format', 'time_zone', 'gravatar_enabled')
     end
+
+    it 'defines the notifications, issues and attachments tabs used by the SPA' do
+      expect(described_class::SETTINGS_BY_TAB['notifications']).to include('mail_from', 'notified_events')
+      expect(described_class::SETTINGS_BY_TAB['issues']).to include('cross_project_subtasks', 'non_working_week_days')
+      expect(described_class::SETTINGS_BY_TAB['attachments']).to include('attachment_max_size', 'attachment_extensions_denied')
+    end
   end
 
   describe '#edit' do

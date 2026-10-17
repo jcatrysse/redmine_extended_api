@@ -36,6 +36,33 @@ module RedmineExtendedApi
           thumbnails_enabled
           thumbnails_size
           new_item_menu_tab
+        ].freeze,
+        # SPR-346: the SPA's global settings page also edits these three tabs. Only keys the
+        # app shows are listed; repository, Gantt, file-viewer and copy settings stay HTML-only.
+        'notifications' => %w[
+          mail_from
+          plain_text_mail
+          show_status_changes_in_mail_subject
+          notified_events
+          emails_header
+          emails_footer
+        ].freeze,
+        'issues' => %w[
+          cross_project_issue_relations
+          close_duplicate_issues
+          default_issue_start_date_to_creation_date
+          cross_project_subtasks
+          non_working_week_days
+          issues_export_limit
+          parent_issue_dates
+          parent_issue_priority
+          parent_issue_done_ratio
+          issue_done_ratio_interval
+        ].freeze,
+        'attachments' => %w[
+          attachment_max_size
+          attachment_extensions_allowed
+          attachment_extensions_denied
         ].freeze
       }.freeze
 
