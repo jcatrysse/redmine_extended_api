@@ -178,6 +178,22 @@ class ExtendedApiIssueHistoryTest < Redmine::ApiTest::Base
     assert_equal 1, Attachment.find(attachment_id).container_id
   end
 
+  # the second use of a token in one request finds the file already attached: 422, all rolled back
+  def test_history_with_the_same_upload_twice_is_refused_and_stores_nothing
+    set_tmp_attachments_directory
+    post '/extended_api/uploads.json?filename=upload.json', params: '{}',
+         headers: {'CONTENT_TYPE' => 'application/octet-stream'}.merge(credentials('admin'))
+    upload = ActiveSupport::JSON.decode(response.body)['upload']
+    file = {token: upload['token'], author_id: 2, created_on: '2024-05-02T08:00:00Z'}
+
+    assert_no_difference ['Journal.count', 'JournalDetail.count'] do
+      history([status_change], attachments: [file, file])
+    end
+    assert_response :unprocessable_entity
+    assert_include 'Token is invalid', ActiveSupport::JSON.decode(response.body)['errors']
+    assert_nil Attachment.find(upload['id']).container_id
+  end
+
   def test_history_as_non_admin_is_refused
     assert_no_difference 'Journal.count' do
       history([status_change], as: 'jsmith')

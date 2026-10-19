@@ -18,6 +18,9 @@ class ExtendedApiIssueHistoriesController < ApplicationController
   # an assignee can be removed; a status or priority is always set
   HISTORY_KEYS_ALLOWING_NIL = %w[assigned_to_id].freeze
 
+  # an upload attached meanwhile (the same token twice, or another request): rolls back
+  class UploadTaken < StandardError; end
+
   accept_api_auth :create
 
   before_action :require_extended_api_history_request
@@ -31,9 +34,13 @@ class ExtendedApiIssueHistoriesController < ApplicationController
     return render_api_error_message(errors.uniq) if errors.any?
 
     journal_ids = attachment_ids = nil
-    Journal.transaction do
-      journal_ids = insert_extended_api_history_journals(journals)
-      attachment_ids = attach_extended_api_history_files(attachments)
+    begin
+      Journal.transaction do
+        journal_ids = insert_extended_api_history_journals(journals)
+        attachment_ids = attach_extended_api_history_files(attachments)
+      end
+    rescue UploadTaken
+      return render_api_error_message([extended_api_history_invalid(:token)])
     end
 
     mark_extended_api_response(fallback: false)
@@ -180,10 +187,12 @@ class ExtendedApiIssueHistoriesController < ApplicationController
   end
 
   # The upload becomes a file of the issue with the given author and time; no journal, the
-  # issue is not saved. update_columns: no callback of the attachment or of the issue runs.
+  # issue is not saved. update_all: no callback of the attachment or of the issue runs.
   def attach_extended_api_history_files(attachments)
     attachments.map do |given|
       attachment = Attachment.find_by_token(given[:token])
+      raise UploadTaken unless attachment
+
       cols = {container_id: @issue.id, container_type: 'Issue',
               author_id: given[:author_id].to_i, created_on: parse_extended_api_time(given[:created_on])}
       if given[:filename].present?
@@ -192,7 +201,9 @@ class ExtendedApiIssueHistoriesController < ApplicationController
       end
       cols[:content_type] = given[:content_type].to_s if given[:content_type].present?
       cols[:description] = given[:description].to_s if given.key?(:description)
-      attachment.update_columns(cols)
+      # only while it is still unattached
+      raise UploadTaken if Attachment.where(id: attachment.id, container_id: nil).update_all(cols).zero?
+
       attachment.id
     end
   end
