@@ -39,7 +39,9 @@ const before = await read();
 
 const chart = `/projects/e2e-project/agile/charts?set_filter=1&f[]=status_id&op[status_id]=*&f[]=issue_id&op[issue_id]==&v[issue_id][]=${issue?.id}` +
   '&f[]=chart_period&op[chart_period]=><&v[chart_period][]=2024-03-01&v[chart_period][]=2024-03-21&chart=cumulative_flow&interval_size=day';
+// redmine_agile is optional: without it the chart steps are skipped, the rest is checked
 async function cumulativeFlow(name, caption) {
+  if (!agile) return null;
   const res = t.page.waitForResponse(r => r.url().includes('/agile/charts/render_chart'), { timeout: 20000 }).catch(() => null);
   await t.go(chart);
   const r = await res;
@@ -51,11 +53,12 @@ async function cumulativeFlow(name, caption) {
 }
 
 await t.login('admin');
+const agile = (await t.page.request.get(`${t.BASE}/projects/e2e-project/agile/charts`)).status() === 200;
 await t.go(`/issues/${issue?.id}`);
 await t.shot('before-page', 'Before: the imported issue (Closed) shows only the imported comment of 2024-03-05; updated 2024-03-20');
 const flowBefore = await cumulativeFlow('before-cumulative-flow', 'Before: redmine_agile\'s cumulative flow of the issue, 2024-03-01..21: Closed every day (no status history)');
 // the first point is the day before the period (the issue does not exist yet)
-a.check(flowBefore.length > 1 && flowBefore.slice(1).every(s => s === 'Closed'), `cumulative flow before: ${flowBefore}`);
+if (flowBefore) a.check(flowBefore.length > 1 && flowBefore.slice(1).every(s => s === 'Closed'), `cumulative flow before: ${flowBefore}`);
 
 // upload the Jira history file, then write the history
 const up = a.expect(await a.call('POST', '/extended_api/uploads.json?filename=upload.json', { body: `{"issue":${issue?.id}}`, contentType: 'application/octet-stream' }), 201).json?.upload;
@@ -92,7 +95,7 @@ await t.go(`/issues/${issue?.id}`);
 await t.shot('after-page', 'After: the history shows the status, assignee and priority changes at their own time, by their own user, around the imported comment; still "Updated" 2024-03-20, jira-history.json by Reporter E2E');
 const flowAfter = await cumulativeFlow('after-cumulative-flow', 'After: the cumulative flow follows the imported history: New on 03-01, In Progress from 03-02, Resolved from 03-10, Closed from 03-15');
 const at = day => flowAfter[day]; // point 0 is the day before 2024-03-01
-a.check(at(1) === 'New' && at(2) === 'In Progress' && at(9) === 'In Progress' && at(10) === 'Resolved' && at(15) === 'Closed' && at(21) === 'Closed',
+if (flowAfter) a.check(at(1) === 'New' && at(2) === 'In Progress' && at(9) === 'In Progress' && at(10) === 'Resolved' && at(15) === 'Closed' && at(21) === 'Closed',
   `cumulative flow after: ${flowAfter}`);
 
 // refusals

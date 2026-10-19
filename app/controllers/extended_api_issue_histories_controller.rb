@@ -52,8 +52,14 @@ class ExtendedApiIssueHistoriesController < ApplicationController
     render_api_error_message(I18n.t(:notice_not_authorized), status: 403)
   end
 
+  # An archived project (or one being deleted) is read-only for everyone in core, admins
+  # included; a closed project is not refused: an import may close its projects first.
   def find_extended_api_history_issue
     @issue = Issue.find(params[:id])
+    project = @issue.project
+    return if project.active? || project.closed?
+
+    render_api_error_message(I18n.t(:notice_not_authorized), status: 403)
   rescue ActiveRecord::RecordNotFound
     render_api_not_found
   end

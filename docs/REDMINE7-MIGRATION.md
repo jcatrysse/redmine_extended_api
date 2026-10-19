@@ -54,6 +54,7 @@ has a test that fails without it. Since 2026-10-13 (decision of Jan) every run i
 | `8244f40` | DELETE of a tracker in use on 5.1 answered only "Unable to delete tracker" (5.1 has no `error_can_not_delete_tracker_html`); now core 5.1's `error_can_not_delete_tracker`. Test fails on 5.1 without it. | e2e on 5.1 |
 | `204c4a8` | On 5.1 with redmine_tags (master) every POST /issues.json was a 500, SystemStackError: this plugin prepended `Issue#safe_attributes=`, redmine_tags loads after it and alias_method-chains the same method, so super looped (0 of 426 issues in session B's 5.1 gate). Issue and Attachment no longer override `safe_attributes=`; the issue overrides are set in `before_validation`, only on the issue the update names. Rspec with an alias chain fails without it (SystemStackError); integration test next to redmine_tags. | 5.1 rollout gate (session B) |
 | `530d2f3` | A subtask created through /extended_api with author_id/created_on overwrote the author and created_on of its parent (the after_save override ran for every issue saved in the request; parent recalculation saves the parent). Now only the issue the request creates or updates. Integration test fails without it. | own review of `204c4a8` |
+| `7ba0351`, next commit | History endpoint (decision 41 of the Jira migration, 2026-10-19): `POST /extended_api/issues/:id/history.json`, admin only; status, assignee and priority changes as journals with their own user and time through `insert_all` (no callback, no watcher, mail or webhook); the issue is not saved; optional uploads attached with their author and time; 422 for every other input, 403 for a non-admin or an archived project. 9 of 11 tests fail without it (the other 2 pin the 404s); archived-project test fails without the review fix. | decision 41, OpenAI review |
 | `506603c` | `skip_journal` (decision 37 of the Jira migration, E1/E2, 2026-10-15): admin-only top-level flag on `/extended_api`; no journal for the issue update, no "Subtask added", no relation journals on create/destroy, issues saved keep `updated_on`, `PUT /extended_api/journals/:id` keeps `updated_on`/`updated_by_id`. Non-admin 403, notes with the flag 422. Callbacks and an around_action only. 9 tests fail without it (7.0 and 5.1). | decision 37 |
 | `8d6caab` | No core method is overridden any more: `init_journal` and `send_notification` were still prepended (same loop risk next to a later alias_method chain on 5.1/6.1). notify=false now sets `notify = false` in `before_save` (core's `send_notification` checks `notify?`); journal overrides are set on the new journal in `before_validation`. Journal and attachment overrides only on their own record: the journal the request writes on the issue it updates, the attachment the upload creates (closing an issue gave the journals of its closed duplicates the imported user and date). Tests fail without it. Decided overnight, for Jan to confirm. | coordinator, overnight 2026-10-13 |
 
@@ -102,6 +103,21 @@ Actions the person doing the upgrade must take, or know about, for this plugin:
 - REST API stays required (Administration > Settings > **Integrations** on Redmine 7, the tab was "API").
 
 ## Results
+
+History endpoint (decision 41, 2026-10-19, PostgreSQL 16.15, branch after `7ba0351` plus the review fix):
+
+| run | result |
+|---|---|
+| tests, 5.1-stable (Ruby 3.2.6) | minitest 64 runs, 283 assertions, 0 failures, 0 errors, 8 skips; rspec 170 examples, 0 failures |
+| tests, 6.1-stable | minitest 64 runs, 337 assertions, 0 failures, 0 errors, 8 skips; rspec 170 examples, 0 failures |
+| tests, 7.0-stable-GEOxyz | minitest 64 runs, 364 assertions, 0 failures, 0 errors, 1 skip; rspec 170 examples, 0 failures |
+| the new test file without the code (7.0) | 11 runs, 9 failures (the 2 that pass pin the 404s, which also hold without the endpoint); archived-project test without the review fix: 1 failure |
+| e2e 7.0, production mode, with redmine_agile (redmine70-migration `0b57a01`) | smoke + core + 14 scenarios, 95 screenshots, 0 problems; the 6 `issue-history-*` screenshots looked at and committed: history in time order around the imported comment, "Updated over 2 years ago" unchanged, Watchers (0), jira-history.json by Reporter E2E 03/20/2024; cumulative flow Closed every day before, New / In Progress from 03-02 / Resolved from 03-10 / Closed from 03-15 after |
+| e2e 7.0 without redmine_agile | 93 screenshots, 0 problems (chart steps skipped) |
+| e2e 5.1/6.1 | not run for this change; the request tests run on both |
+| Ruby 2.7 syntax | 46 files, 0 errors |
+| OpenAI review `de4ab98..7ba0351` | `docs/reviews/openai-2026-10-19-7ba0351.md`: 2 findings, both fixed (e2e without redmine_agile; archived project) |
+| not tested | the MySQL path without RETURNING (PostgreSQL only, decision 2026-10-07) |
 
 After `506603c` (skip_journal, 2026-10-15, PostgreSQL 16.15):
 
@@ -212,6 +228,7 @@ exchange and the Redmine page that shows the result.
 | notify=false / send_notification=0 on issues and relations | any API user | `notifications.mjs` | notifications-calls, -mail-count, -quiet-issue |
 | Issue relations create/delete (core permissions, notify=false) | members with manage_issue_relations | `relations.mjs` | relations-create, -issue-page, -refused, -delete, -issue-page-after |
 | notify=false / send_notification=0 silence the Redmine 7 webhooks of the request (decision q2) | any API user; core path untouched; 7.0 only | `webhooks.mjs` | webhooks-webhook, -calls, -received, -quiet-issue; on 5.1/6.1 webhooks-none-before-7, -none-before-7-404 |
+| History endpoint: imported status, assignee and priority changes as journals, uploads attached, issue untouched; redmine_agile's cumulative flow before and after (when installed) | admin API; 403 for others and archived projects, 401 anonymous, 404 on the core path, 422 invalid input | `issue_history.mjs` | issue-history-before-page, -before-cumulative-flow, -admin, -after-page, -after-cumulative-flow, -refused |
 | `skip_journal`: import post-processing without journal or edit trace (issue update, parent, relations, comment rewrite) | admin API; 403 for others, 422 with notes; ignored on the core path | `skip_journal.mjs` | skip-journal-admin, -child-page, -parent-page, -without-flag, -without-flag-page, -refused, -member-page |
 | Show routes only under `/extended_api` (core `/trackers/1.json` etc. 404) | API | in the scenarios above and `smoke.mjs` | smoke-13..15, the -refused screenshots |
 
@@ -363,6 +380,24 @@ curl -X PUT -H 'Content-Type: application/json' -H 'X-Redmine-API-Key: <admin ke
   https://redmine.example.com/extended_api/journals/456.json      # 204, not "Edited"
 ```
 
+## History endpoint (decision 41 of the Jira migration, 2026-10-19)
+
+Asked by Jan through the coordinator (jcatrysse/jira2redmine_migration `docs/research/JIRA-HISTORY.md`
+sections 2.1, 2.4, 2.5; decision 41 in `docs/MIGRATION-PLAN.md`): the main Jira history (status,
+assignee, priority changes) as real Redmine journals with Jira's user and time, without the issue
+looking "updated just now". `POST /extended_api/issues/:id/history.json`, contract and example in the
+README ("Imported issue history"). Controller `app/controllers/extended_api_issue_histories_controller.rb`,
+route in `config/routes.rb` (only answers through `/extended_api`, like the show routes).
+
+- Journals and details go in with `insert_all` in one transaction: no Journal callback (no
+  `add_watcher`, no mail, no other plugin's job), no Issue save (no webhook, updated_on, closed_on,
+  status_id, lock_version and watchers unchanged).
+- Validation before anything is written; 422 lists every reason.
+- Uploads: `update_columns` on the attachment (container, author, created_on, filename through core's
+  sanitizing setter, content type, description); no journal.
+- redmine_agile's cumulative flow reads `journal_details` with `journals.created_on`, so it follows the
+  imported history (e2e screenshots).
+
 ## Branch history rewrite (2026-10-14)
 
 On Jan's instruction, once before the merge into `main`: every commit after `bf7e6c4` got author and
@@ -394,6 +429,16 @@ Decided overnight (2026-10-13), for Jan to confirm:
 - **redmine_extended_api-q8**, scope of the import overrides: only the record the request creates or
   updates (the issue, its new journal, the uploaded attachment), never other records saved along with
   it (parent, duplicates, related issues). notify=false keeps silencing every mail of the request.
+
+Decided while building the history endpoint (2026-10-19), for Jan to confirm:
+- **redmine_extended_api-q13**, closed projects: the history endpoint writes into an issue of a closed
+  project (an import may close its projects before the history pass); archived projects are refused
+  (403), as core does for every write.
+- **redmine_extended_api-q14**, "last updated by": Redmine takes the user of the journal with the
+  highest id (`Issue#last_updated_by`, and the issue list column). History written after newer
+  comments therefore makes the last history user the "last updated by", not the user of the latest
+  event by time. The endpoint cannot change ids; keeping it right needs the history written before
+  the comments of the issue, or not caring. updated_on is not affected.
 
 - Nothing else: q9 to q12 were answered on 2026-10-15, q4 to q6 on 2026-10-13, see "Decided by Jan".
 

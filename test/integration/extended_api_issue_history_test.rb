@@ -179,6 +179,23 @@ class ExtendedApiIssueHistoryTest < Redmine::ApiTest::Base
     assert_response :not_found
   end
 
+  def test_history_in_an_archived_project_is_refused
+    Project.find(1).update_column(:status, Project::STATUS_ARCHIVED)
+    assert_no_difference 'Journal.count' do
+      history([status_change])
+    end
+    assert_response :forbidden
+  end
+
+  # an import may close its projects before it writes their history
+  def test_history_in_a_closed_project_is_written
+    Project.find(1).update_column(:status, Project::STATUS_CLOSED)
+    assert_difference 'Journal.count', 1 do
+      history([status_change])
+    end
+    assert_response :created
+  end
+
   def test_history_of_an_unknown_issue_is_not_found
     history([status_change], path: '/extended_api/issues/999999/history.json')
     assert_response :not_found
