@@ -80,6 +80,29 @@ The extended API keeps the native responses from Redmine's issue endpoints while
 
   A non-admin sending it gets `403` (`"You are not authorized to access this page."`) and nothing is changed. An issue update with `skip_journal` and `notes` (or `private_notes`) is refused with `422` (`"Notes is invalid"`): notes live in a journal and would be lost. `skip_journal=false`/`0` is the normal request. On the core path the parameter changes nothing.
 
+### Imported issue history
+
+`POST /extended_api/issues/:id/history.json` writes imported status, assignee and priority changes as journals with their own user and time, without saving the issue. Admin only (`403` for anyone else, `401` without credentials), `/extended_api` only (`404` on the core path), JSON only.
+
+- Each journal is stored with `notes` empty, not private, `updated_on` = `created_on` and no `updated_by` (not shown as edited). Journals and details are written with `insert_all`, so no callback runs: no watcher is added, no mail, no webhook, no job of another plugin.
+- The issue is not saved: `updated_on`, `closed_on`, `status_id` and its watchers stay as they are. Redmine shows the history ordered by `created_on`, then `id`, so the changes appear at their own time between existing journals.
+- Details: `property` `attr` with `prop_key` `status_id`, `assigned_to_id` or `priority_id`; the values are ids of an existing status, user or group, or priority. `old_value` may be `null`; `value` only for `assigned_to_id` (unassigned).
+- `attachments` (optional): uploads from `/extended_api/uploads.json` attached to the issue with the given `author_id` and `created_on` (and `filename`, `content_type`, `description`), with no journal.
+- Refused with `422` and nothing stored: an empty `journals` list, a journal without details, another property or key, an id that does not exist, an unknown `user_id`, an unparseable `created_on`, any `notes` or `private_notes`, an unknown upload token or attachment author or time.
+- Answer `201`: `{"journal_ids": [...], "attachment_ids": [...]}`, journal ids in the order sent.
+- Redmine's "last updated by" is the user of the journal with the highest id: journals written by this endpoint after newer comments make their user the last updater.
+
+```bash
+curl -X POST -H "Content-Type: application/json" -H "X-Redmine-API-Key: <admin token>" \
+  -d '{"journals":[{"user_id":12,"created_on":"2024-03-01T10:15:00Z","details":[
+        {"property":"attr","prop_key":"status_id","old_value":"1","value":"3"},
+        {"property":"attr","prop_key":"assigned_to_id","old_value":null,"value":"12"}]}],
+       "attachments":[{"token":"<from /extended_api/uploads.json>","filename":"jira-history.json",
+        "content_type":"application/json","description":"Jira history","author_id":12,"created_on":"2024-05-02T08:00:00Z"}]}' \
+  https://redmine.example.com/extended_api/issues/123/history.json
+# 201 {"journal_ids":[456],"attachment_ids":[789]}
+```
+
 ### Attachment-specific utilities
 
 - Preserve uploader history on imported files by supplying `author_id` and/or `created_on` in `/extended_api/uploads` requests. Overrides are limited to admin users and keep the provided timestamp intact by disabling automatic timestamp updates for the request. Values that cannot be stored are refused with `422`, as for issues.
