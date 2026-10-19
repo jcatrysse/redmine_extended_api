@@ -194,6 +194,30 @@ class ExtendedApiIssueHistoryTest < Redmine::ApiTest::Base
     assert_nil Attachment.find(upload['id']).container_id
   end
 
+  # every history item of the issue was skipped: only the file is attached
+  def test_history_with_only_an_attachment_attaches_it_and_writes_no_journal
+    set_tmp_attachments_directory
+    post '/extended_api/uploads.json?filename=upload.json', params: '{}',
+         headers: {'CONTENT_TYPE' => 'application/octet-stream'}.merge(credentials('admin'))
+    token = ActiveSupport::JSON.decode(response.body)['upload']['token']
+
+    assert_no_difference ['Journal.count', 'JournalDetail.count'] do
+      history([], attachments: [{token: token, filename: 'jira-history.json', author_id: 2, created_on: '2024-05-02T08:00:00Z'}])
+    end
+    assert_response :created
+    json = ActiveSupport::JSON.decode(response.body)
+    assert_equal [], json['journal_ids']
+    attachment = Attachment.find(json['attachment_ids'].first)
+    assert_equal [@issue, 2, Time.utc(2024, 5, 2, 8)], [attachment.container, attachment.author_id, attachment.created_on.utc]
+    assert_equal UPDATED_ON, @issue.reload.updated_on.utc
+  end
+
+  def test_history_without_journals_and_attachments_is_refused
+    history([], attachments: [])
+    assert_response :unprocessable_entity
+    assert_include 'History is invalid', ActiveSupport::JSON.decode(response.body)['errors']
+  end
+
   def test_history_as_non_admin_is_refused
     assert_no_difference 'Journal.count' do
       history([status_change], as: 'jsmith')

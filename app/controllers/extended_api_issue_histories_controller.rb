@@ -30,7 +30,7 @@ class ExtendedApiIssueHistoriesController < ApplicationController
     journals = Array.wrap(history_param(:journals))
     attachments = Array.wrap(history_param(:attachments))
 
-    errors = extended_api_history_errors(journals) + extended_api_history_attachment_errors(attachments)
+    errors = extended_api_history_errors(journals, attachments) + extended_api_history_attachment_errors(attachments)
     return render_api_error_message(errors.uniq) if errors.any?
 
     journal_ids = attachment_ids = nil
@@ -94,8 +94,10 @@ class ExtendedApiIssueHistoriesController < ApplicationController
     "#{label} #{I18n.t('activerecord.errors.messages.invalid', default: 'is invalid')}"
   end
 
-  def extended_api_history_errors(journals)
-    return [extended_api_history_invalid(:history)] if journals.empty?
+  # No journals is fine with files to attach: an issue whose history items were all skipped
+  # still gets its jira-history.json. Nothing at all is refused.
+  def extended_api_history_errors(journals, attachments)
+    return [extended_api_history_invalid(:history)] if journals.empty? && attachments.empty?
 
     journals.flat_map do |journal|
       next [extended_api_history_invalid(:history)] unless journal.is_a?(Hash)
@@ -159,6 +161,8 @@ class ExtendedApiIssueHistoriesController < ApplicationController
   # inserted alone and its id read back on the same connection (MySQL/MariaDB LAST_INSERT_ID(),
   # not shared with concurrent requests).
   def insert_extended_api_history_journals(journals)
+    return [] if journals.empty?
+
     rows = journals.map do |journal|
       time = parse_extended_api_time(journal[:created_on])
       {journalized_id: @issue.id, journalized_type: 'Issue', user_id: journal[:user_id].to_i,

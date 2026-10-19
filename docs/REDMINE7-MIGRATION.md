@@ -108,14 +108,15 @@ History endpoint (decision 41, 2026-10-19, PostgreSQL 16.15, branch after `7ba03
 
 | run | result |
 |---|---|
-| tests, 5.1-stable (Ruby 3.2.6) | minitest 66 runs, 305 assertions, 0 failures, 0 errors, 8 skips; rspec 170 examples, 0 failures |
-| tests, 6.1-stable | minitest 66 runs, 364 assertions, 0 failures, 0 errors, 8 skips; rspec 170 examples, 0 failures |
-| tests, 7.0-stable-GEOxyz | minitest 66 runs, 391 assertions, 0 failures, 0 errors, 1 skip; rspec 170 examples, 0 failures |
+| tests, 5.1-stable (Ruby 3.2.6) | minitest 68 runs, 313 assertions, 0 failures, 0 errors, 8 skips; rspec 170 examples, 0 failures |
+| tests, 6.1-stable | minitest 68 runs, 373 assertions, 0 failures, 0 errors, 8 skips; rspec 170 examples, 0 failures |
+| tests, 7.0-stable-GEOxyz | minitest 68 runs, 400 assertions, 0 failures, 0 errors, 1 skip; rspec 170 examples, 0 failures |
 | the new test file without the code (7.0) | 11 runs, 9 failures (the 2 that pass pin the 404s, which also hold without the endpoint); archived-project test without the review fix: 1 failure |
 | e2e 7.0, production mode, with redmine_agile (redmine70-migration `0b57a01`) | smoke + core + 14 scenarios, 95 screenshots, 0 problems; the 6 `issue-history-*` screenshots looked at and committed: history in time order around the imported comment, "Updated over 2 years ago" unchanged, Watchers (0), jira-history.json by Reporter E2E 03/20/2024; cumulative flow Closed every day before, New / In Progress from 03-02 / Resolved from 03-10 / Closed from 03-15 after |
 | e2e 7.0 without redmine_agile | 93 screenshots, 0 problems (chart steps skipped) |
 | e2e 5.1/6.1 | not run for this change; the request tests run on both |
 | Ruby 2.7 syntax | 46 files, 0 errors |
+| journals empty with attachments (2026-10-19, after `6fcb543`) | allowed; 422 only when both are empty; test fails without it (7.0: 17 runs, 1 failure) |
 | e2e after the last fix (`52a73aa`), 7.0 without redmine_agile | issue-history 4 screenshots, skip-journal 7, 0 problems |
 | OpenAI review `de4ab98..7ba0351` | `docs/reviews/openai-2026-10-19-7ba0351.md`: 2 findings, both fixed (e2e without redmine_agile; archived project); second run `openai-2026-10-19-a58e2e7.md`: 3 findings: MySQL id read-back fixed (LAST_INSERT_ID on the same connection, not run here), reuse of an attached file's token refuted with a new test (core's find_by_token already refuses it), token clearing not applicable (no token column); third run `openai-2026-10-19-e87ed79.md`: 1 finding, fixed (the same upload twice gave a 500 after a partial write, now 422 with rollback, test fails without it); fourth run `openai-2026-10-19-0e01776.md`: 2 findings, fixed (attachment strings over 255 characters, private_notes values like "on"); fifth run `openai-2026-10-19-52a73aa.md`: no findings |
 | not tested | the MySQL path without RETURNING (PostgreSQL only, decision 2026-10-07) |
@@ -281,6 +282,18 @@ unchanged by this work, so recorded, not fixed):
 Recorded 2026-10-07 from `docs/DECISIONS-2026-10-07.md` (Jan's answers in the coordinating session);
 notes verbatim. Final.
 
+Answers of 2026-10-19 (through the coordinator), history endpoint:
+- **redmine_extended_api-q13**, closed projects: right as built. The history endpoint writes into an
+  issue of a closed project (an import may close its projects first); an archived project (or one
+  scheduled for deletion) is refused with 403, as core refuses every write there.
+- **redmine_extended_api-q14**, "last updated by": Redmine takes the user of the journal with the
+  highest id (`Issue#last_updated_by`, the issue list column), not the latest created_on. Solved on the
+  script side (option C of decision 41): the migration pushes each issue's comments and history in
+  Jira's time order, so the highest id is the latest event. Nothing to build here.
+- Contract additions: `journals` may be empty when `attachments` is not (422 only when both are
+  empty); the answer stays `{"journal_ids": [...], "attachment_ids": [...]}`; a null value for
+  status_id or priority_id stays refused.
+
 Answers of 2026-10-15 (multiple choice in the coordinating session): Jan agrees with all four choices made
 while building `skip_journal` (`506603c`); final.
 - **redmine_extended_api-q9**, name and form: `skip_journal`, top-level next to `notify`, in the query
@@ -431,17 +444,7 @@ Decided overnight (2026-10-13), for Jan to confirm:
   updates (the issue, its new journal, the uploaded attachment), never other records saved along with
   it (parent, duplicates, related issues). notify=false keeps silencing every mail of the request.
 
-Decided while building the history endpoint (2026-10-19), for Jan to confirm:
-- **redmine_extended_api-q13**, closed projects: the history endpoint writes into an issue of a closed
-  project (an import may close its projects before the history pass); archived projects are refused
-  (403), as core does for every write.
-- **redmine_extended_api-q14**, "last updated by": Redmine takes the user of the journal with the
-  highest id (`Issue#last_updated_by`, and the issue list column). History written after newer
-  comments therefore makes the last history user the "last updated by", not the user of the latest
-  event by time. The endpoint cannot change ids; keeping it right needs the history written before
-  the comments of the issue, or not caring. updated_on is not affected.
-
-- Nothing else: q9 to q12 were answered on 2026-10-15, q4 to q6 on 2026-10-13, see "Decided by Jan".
+- Nothing else: q13 and q14 were answered on 2026-10-19, q9 to q12 on 2026-10-15, q4 to q6 on 2026-10-13, see "Decided by Jan".
 
 
 ## Not testable here
