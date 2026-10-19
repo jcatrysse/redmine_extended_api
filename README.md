@@ -89,7 +89,7 @@ The extended API keeps the native responses from Redmine's issue endpoints while
 - Details: `property` `attr` with `prop_key` `status_id`, `assigned_to_id` or `priority_id`; the values are ids of an existing status, user or group, or priority. `old_value` may be `null`; `value` only for `assigned_to_id` (unassigned).
 - `attachments` (optional): uploads from `/extended_api/uploads.json` attached to the issue with the given `author_id` and `created_on` (and `filename`, `content_type`, `description`), with no journal.
 - An issue in an archived project is refused with `403`; a closed project is accepted (an import may close its projects first).
-- Refused with `422` and nothing stored: an empty `journals` list, a journal without details, another property or key, an id that does not exist, an unknown `user_id`, an unparseable `created_on`, any `notes` or `private_notes`, an unknown upload token or attachment author or time.
+- Refused with `422` and nothing stored: an empty `journals` list, a journal without details, another property or key, an id that does not exist, an unknown `user_id`, an unparseable `created_on`, any `notes` or `private_notes` (other than `false`), an unknown or already attached upload token, an unknown attachment author or time, an attachment filename, content type or description over 255 characters.
 - Answer `201`: `{"journal_ids": [...], "attachment_ids": [...]}`, journal ids in the order sent.
 - Redmine's "last updated by" is the user of the journal with the highest id: journals written by this endpoint after newer comments make their user the last updater.
 

@@ -104,19 +104,19 @@ Actions the person doing the upgrade must take, or know about, for this plugin:
 
 ## Results
 
-History endpoint (decision 41, 2026-10-19, PostgreSQL 16.15, branch after `7ba0351` plus three review rounds):
+History endpoint (decision 41, 2026-10-19, PostgreSQL 16.15, branch after `7ba0351` plus four review rounds):
 
 | run | result |
 |---|---|
-| tests, 5.1-stable (Ruby 3.2.6) | minitest 66 runs, 293 assertions, 0 failures, 0 errors, 8 skips; rspec 170 examples, 0 failures |
-| tests, 6.1-stable | minitest 66 runs, 349 assertions, 0 failures, 0 errors, 8 skips; rspec 170 examples, 0 failures |
-| tests, 7.0-stable-GEOxyz | minitest 66 runs, 376 assertions, 0 failures, 0 errors, 1 skip; rspec 170 examples, 0 failures |
+| tests, 5.1-stable (Ruby 3.2.6) | minitest 66 runs, 305 assertions, 0 failures, 0 errors, 8 skips; rspec 170 examples, 0 failures |
+| tests, 6.1-stable | minitest 66 runs, 364 assertions, 0 failures, 0 errors, 8 skips; rspec 170 examples, 0 failures |
+| tests, 7.0-stable-GEOxyz | minitest 66 runs, 391 assertions, 0 failures, 0 errors, 1 skip; rspec 170 examples, 0 failures |
 | the new test file without the code (7.0) | 11 runs, 9 failures (the 2 that pass pin the 404s, which also hold without the endpoint); archived-project test without the review fix: 1 failure |
 | e2e 7.0, production mode, with redmine_agile (redmine70-migration `0b57a01`) | smoke + core + 14 scenarios, 95 screenshots, 0 problems; the 6 `issue-history-*` screenshots looked at and committed: history in time order around the imported comment, "Updated over 2 years ago" unchanged, Watchers (0), jira-history.json by Reporter E2E 03/20/2024; cumulative flow Closed every day before, New / In Progress from 03-02 / Resolved from 03-10 / Closed from 03-15 after |
 | e2e 7.0 without redmine_agile | 93 screenshots, 0 problems (chart steps skipped) |
 | e2e 5.1/6.1 | not run for this change; the request tests run on both |
 | Ruby 2.7 syntax | 46 files, 0 errors |
-| OpenAI review `de4ab98..7ba0351` | `docs/reviews/openai-2026-10-19-7ba0351.md`: 2 findings, both fixed (e2e without redmine_agile; archived project); second run `openai-2026-10-19-a58e2e7.md`: 3 findings: MySQL id read-back fixed (LAST_INSERT_ID on the same connection, not run here), reuse of an attached file's token refuted with a new test (core's find_by_token already refuses it), token clearing not applicable (no token column); third run `openai-2026-10-19-e87ed79.md`: 1 finding, fixed (the same upload twice gave a 500 after a partial write, now 422 with rollback, test fails without it) |
+| OpenAI review `de4ab98..7ba0351` | `docs/reviews/openai-2026-10-19-7ba0351.md`: 2 findings, both fixed (e2e without redmine_agile; archived project); second run `openai-2026-10-19-a58e2e7.md`: 3 findings: MySQL id read-back fixed (LAST_INSERT_ID on the same connection, not run here), reuse of an attached file's token refuted with a new test (core's find_by_token already refuses it), token clearing not applicable (no token column); third run `openai-2026-10-19-e87ed79.md`: 1 finding, fixed (the same upload twice gave a 500 after a partial write, now 422 with rollback, test fails without it); fourth run `openai-2026-10-19-0e01776.md`: 2 findings, fixed (attachment strings over 255 characters, private_notes values like "on") |
 | not tested | the MySQL path without RETURNING (PostgreSQL only, decision 2026-10-07) |
 
 After `506603c` (skip_journal, 2026-10-15, PostgreSQL 16.15):

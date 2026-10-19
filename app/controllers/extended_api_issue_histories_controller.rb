@@ -103,7 +103,7 @@ class ExtendedApiIssueHistoriesController < ApplicationController
       errors = []
       errors << extended_api_history_invalid(:user_id) unless extended_api_user_exists?(journal[:user_id])
       errors << extended_api_history_invalid(:created_on) unless parse_extended_api_time(journal[:created_on].presence)
-      errors << extended_api_history_invalid(:notes) if journal[:notes].present? || %w[true 1].include?(journal[:private_notes].to_s)
+      errors << extended_api_history_invalid(:notes) if journal[:notes].present? || extended_api_history_private?(journal)
 
       details = journal[:details]
       if !details.is_a?(Array) || details.empty?
@@ -113,6 +113,11 @@ class ExtendedApiIssueHistoriesController < ApplicationController
       end
       errors
     end
+  end
+
+  # private_notes is refused unless it says "not private"
+  def extended_api_history_private?(journal)
+    journal.key?(:private_notes) && !['', 'false', '0'].include?(journal[:private_notes].to_s)
   end
 
   def extended_api_history_detail_errors(detail)
@@ -140,6 +145,11 @@ class ExtendedApiIssueHistoriesController < ApplicationController
       errors << extended_api_history_invalid(:token) unless Attachment.find_by_token(attachment[:token])
       errors << extended_api_history_invalid(:author_id) unless extended_api_user_exists?(attachment[:author_id])
       errors << extended_api_history_invalid(:created_on) unless parse_extended_api_time(attachment[:created_on].presence)
+      # written with update_all, past the model's validations: core's limit of 255 for filename
+      # and description, and the string column of content_type (255 on MySQL)
+      %i[filename content_type description].each do |key|
+        errors << extended_api_history_invalid(key) if attachment[key].to_s.length > 255
+      end
       errors
     end
   end

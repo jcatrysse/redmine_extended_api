@@ -255,6 +255,7 @@ class ExtendedApiIssueHistoryTest < Redmine::ApiTest::Base
       'no time' => [[status_change(created_on: nil)], 'Created is invalid'],
       'notes' => [[status_change.merge(notes: 'a comment')], 'Notes is invalid'],
       'private notes' => [[status_change.merge(private_notes: true)], 'Notes is invalid'],
+      'private notes on' => [[status_change.merge(private_notes: 'on')], 'Notes is invalid'],
       'second journal invalid' => [[status_change, status_change(user_id: 999)], 'User is invalid']
     }
 
@@ -271,7 +272,9 @@ class ExtendedApiIssueHistoryTest < Redmine::ApiTest::Base
     cases = {
       'unknown token' => [{token: '999.abc', author_id: 2, created_on: '2024-05-02T08:00:00Z'}, 'Token is invalid'],
       'unknown author' => [{token: '999.abc', author_id: 999, created_on: '2024-05-02T08:00:00Z'}, 'Author is invalid'],
-      'unparseable time' => [{token: '999.abc', author_id: 2, created_on: 'never'}, 'Created is invalid']
+      'unparseable time' => [{token: '999.abc', author_id: 2, created_on: 'never'}, 'Created is invalid'],
+      'content type too long' => [{token: '999.abc', author_id: 2, created_on: '2024-05-02T08:00:00Z', content_type: 'a' * 1000}, 'Content type is invalid'],
+      'filename too long' => [{token: '999.abc', author_id: 2, created_on: '2024-05-02T08:00:00Z', filename: 'a' * 1000}, "#{I18n.t(:field_filename)} is invalid"]
     }
     cases.each do |name, (attachment, message)|
       assert_no_difference ['Journal.count', 'JournalDetail.count'], name do
