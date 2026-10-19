@@ -158,6 +158,26 @@ class ExtendedApiIssueHistoryTest < Redmine::ApiTest::Base
     assert_not JournalDetail.where(property: 'attachment', prop_key: attachment.id.to_s).exists?
   end
 
+  # core's Attachment.find_by_token only finds a file without container: a token cannot move a
+  # file that is already attached
+  def test_history_refuses_the_token_of_an_attached_file
+    set_tmp_attachments_directory
+    post '/extended_api/uploads.json?filename=upload.json', params: '{}',
+         headers: {'CONTENT_TYPE' => 'application/octet-stream'}.merge(credentials('admin'))
+    token = ActiveSupport::JSON.decode(response.body)['upload']['token']
+    file = {token: token, author_id: 2, created_on: '2024-05-02T08:00:00Z'}
+    history([status_change], attachments: [file])
+    assert_response :created
+    attachment_id = ActiveSupport::JSON.decode(response.body)['attachment_ids'].first
+
+    assert_no_difference 'Journal.count' do
+      history([status_change], attachments: [file], path: '/extended_api/issues/2/history.json')
+    end
+    assert_response :unprocessable_entity
+    assert_include 'Token is invalid', ActiveSupport::JSON.decode(response.body)['errors']
+    assert_equal 1, Attachment.find(attachment_id).container_id
+  end
+
   def test_history_as_non_admin_is_refused
     assert_no_difference 'Journal.count' do
       history([status_change], as: 'jsmith')

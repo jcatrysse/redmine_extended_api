@@ -138,8 +138,9 @@ class ExtendedApiIssueHistoriesController < ApplicationController
   end
 
   # One row per journal: notes '', not private, updated_on = created_on, updated_by_id empty
-  # (not edited). PostgreSQL returns the ids in insert order; without RETURNING (MySQL) each
-  # journal is inserted alone and read back.
+  # (not edited). PostgreSQL returns the ids in insert order; without RETURNING each journal is
+  # inserted alone and its id read back on the same connection (MySQL/MariaDB LAST_INSERT_ID(),
+  # not shared with concurrent requests).
   def insert_extended_api_history_journals(journals)
     rows = journals.map do |journal|
       time = parse_extended_api_time(journal[:created_on])
@@ -153,7 +154,7 @@ class ExtendedApiIssueHistoriesController < ApplicationController
       else
         rows.map do |row|
           Journal.insert_all([row])
-          Journal.where(row.slice(:journalized_id, :journalized_type, :user_id, :created_on)).maximum(:id)
+          extended_api_last_insert_id(row)
         end
       end
 
@@ -167,6 +168,15 @@ class ExtendedApiIssueHistoriesController < ApplicationController
     JournalDetail.insert_all(details)
 
     ids
+  end
+
+  def extended_api_last_insert_id(row)
+    connection = Journal.connection
+    if connection.adapter_name.to_s.match?(/mysql|maria/i)
+      connection.select_value('SELECT LAST_INSERT_ID()').to_i
+    else
+      Journal.where(row.slice(:journalized_id, :journalized_type, :user_id, :created_on)).maximum(:id)
+    end
   end
 
   # The upload becomes a file of the issue with the given author and time; no journal, the
