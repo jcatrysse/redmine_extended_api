@@ -57,6 +57,7 @@ has a test that fails without it. Since 2026-10-13 (decision of Jan) every run i
 | `7ba0351`, `a58e2e7`, `e87ed79`, `0e01776`, `52a73aa` | History endpoint (decision 41 of the Jira migration, 2026-10-19): `POST /extended_api/issues/:id/history.json`, admin only; status, assignee and priority changes as journals with their own user and time through `insert_all` (no callback, no watcher, mail or webhook); the issue is not saved; optional uploads attached with their author and time; 422 for every other input, 403 for a non-admin or an archived project. 9 of 11 tests fail without it (the other 2 pin the 404s); archived-project test fails without the review fix. | decision 41, OpenAI review |
 | `506603c` | `skip_journal` (decision 37 of the Jira migration, E1/E2, 2026-10-15): admin-only top-level flag on `/extended_api`; no journal for the issue update, no "Subtask added", no relation journals on create/destroy, issues saved keep `updated_on`, `PUT /extended_api/journals/:id` keeps `updated_on`/`updated_by_id`. Non-admin 403, notes with the flag 422. Callbacks and an around_action only. 9 tests fail without it (7.0 and 5.1). | decision 37 |
 | `8d6caab` | No core method is overridden any more: `init_journal` and `send_notification` were still prepended (same loop risk next to a later alias_method chain on 5.1/6.1). notify=false now sets `notify = false` in `before_save` (core's `send_notification` checks `notify?`); journal overrides are set on the new journal in `before_validation`. Journal and attachment overrides only on their own record: the journal the request writes on the issue it updates, the attachment the upload creates (closing an issue gave the journals of its closed duplicates the imported user and date). Tests fail without it. Decided overnight, for Jan to confirm. | coordinator, overnight 2026-10-13 |
+| (this commit) | Finding #25094 (2026-10-22): every .xml answer of the plugin's 7 views (custom field, enumeration, enumeration list, issue status, tracker, role, journal of an issue update) had two top-level elements (`<extended_api>` then the record), so XML parsers refused them (0 of 21 parsed). XML now has one root: `<extended_api>` is the first child of the record's element; the enumeration list carries it as attributes of the array (`extended_api_mode`, `extended_api_fallback_to_native`, left out with `nometa`, like core's `total_count`), because Rails' `Hash.from_xml` takes the first non-string child of a `type="array"` element as its items. JSON byte-identical (Jira migration scripts). README: `copy_workflow_from` and a custom field's `type` at the top level. Test fails without it (3 of 4). | review #25094 |
 
 ## Work list for the migration session
 
@@ -103,6 +104,20 @@ Actions the person doing the upgrade must take, or know about, for this plugin:
 - REST API stays required (Administration > Settings > **Integrations** on Redmine 7, the tab was "API").
 
 ## Results
+
+XML answers (finding #25094, 2026-10-22, PostgreSQL 16.15):
+
+| run | result |
+|---|---|
+| JSON identity | the 21 answers rendered by the 7 views (show, create, update of each resource, enumeration list all/by type/by path, the journal of an issue update), captured in the test env on the same data: old run 1 = old run 2 = new run 1 = new run 2, byte for byte (sha256 of the 21 files equal). Live production-mode server: the 9 GET answers before (old views) and after, byte-identical. |
+| XML before | 0 of 21 parsed (`junk after document element`, Python ElementTree; Nokogiri strict: `Extra content at the end of the document`); live server: 9 of 9 refused by xmllint |
+| XML after | 21 of 21 parsed, root = the record (`custom_field`, `enumeration`, `enumerations`, `issue_status`, `journal`, `role`, `tracker`); live server: 15 of 15 (GETs and writes) pass `xmllint --noout` |
+| tests, 7.0-stable-GEOxyz 578730a | minitest 72 runs, 442 assertions, 0 failures, 0 errors, 1 skip; rspec 170 examples, 0 failures (before: 68 runs, 400 assertions) |
+| tests, 6.1-stable | minitest 72 runs, 415 assertions, 0 failures, 0 errors, 8 skips; rspec 170 examples, 0 failures |
+| tests, 5.1-stable (Ruby 3.2.3) | minitest 72 runs, 355 assertions, 0 failures, 0 errors, 8 skips; rspec 170 examples, 0 failures |
+| new test without the fix | 7.0: 4 runs, 3 errors (`Extra content at the end of the document`); the JSON test passes on both, it pins the JSON; 5.1: the same 3 errors |
+| e2e 7.0, production mode | smoke + core + 14 scenarios, 93 screenshots, 0 problems; the four scenarios that show a record as XML now check for one root: on the old views 1 problem each, on the new 0; their four `*-admin-*` screenshots with the XML recommitted and looked at |
+| README claims, measured on 7.0 | `copy_workflow_from` inside `tracker` or `role`: 201 but 0 workflows copied; at the top level: copied (93 / 127). `type` inside `custom_field`: 422 `Type is invalid`, or ignored next to a top-level type. `status_id` on issue create (admin): not always ignored. Core keeps it when the workflow has a "new issue" transition to that status (for an admin: any role), else uses the tracker's default status silently: fixtures (with such rows) Assigned/Resolved kept, Closed replaced by New; default data (no such rows) every status replaced by New, core and /extended_api alike. README left as it is on this point, for Jan. |
 
 History endpoint (decision 41, 2026-10-19, PostgreSQL 16.15, branch after `7ba0351` plus four review rounds):
 

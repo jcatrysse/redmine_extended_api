@@ -23,6 +23,10 @@ All new endpoints will have a recognisable JSON /XML payload:
 ``` json
 {"extended_api":{"mode":"extended","fallback_to_native":false}}
 ```
+In XML, which has one root element, the same block is the first element inside the record's element
+(`<tracker><extended_api><mode>extended</mode><fallback_to_native>false</fallback_to_native></extended_api><id>...`);
+the enumeration list carries it as attributes of the array, like core's `total_count`
+(`<enumerations extended_api_mode="extended" extended_api_fallback_to_native="false" type="array">`, left out with `nometa=1`).
 
 ## Installation
 
@@ -270,7 +274,7 @@ All paths require either `.json` or `.xml` and the usual authentication headers.
 |----------------|-----------|---------------------------------------|---------------------|-----------------------------------------------------------------------------------------------------------------------------------------|
 | List trackers  | GET       | `/extended_api/trackers.{format}`     | Core (proxy)        | Includes metadata such as `default_status` and enabled fields.                                                                          |
 | Show tracker   | GET       | `/extended_api/trackers/:id.{format}` | Extended only (new) | Retrieves the tracker definition.                                                                                                       |
-| Create tracker | POST      | `/extended_api/trackers.{format}`     | Extended only (new) | Payload under `tracker` (`name`, `default_status_id`, `core_fields`, `custom_field_ids`, `project_ids`, optional `copy_workflow_from`). |
+| Create tracker | POST      | `/extended_api/trackers.{format}`     | Extended only (new) | Payload under `tracker` (`name`, `default_status_id`, `core_fields`, `custom_field_ids`, `project_ids`). Optional `copy_workflow_from` (a tracker id) at the top level, next to `tracker`; inside `tracker` it is ignored. |
 | Update tracker | PUT/PATCH | `/extended_api/trackers/:id.{format}` | Extended only (new) | Accepts the same attributes as create.                                                                                                  |
 | Delete tracker | DELETE    | `/extended_api/trackers/:id.{format}` | Extended only (new) | Cannot remove trackers still referenced by issues.                                                                                      |
 
@@ -290,7 +294,7 @@ All paths require either `.json` or `.xml` and the usual authentication headers.
 |---------------------|-----------|--------------------------------------------|---------------------|---------------------------------------------------------------------------------|
 | List custom fields  | GET       | `/extended_api/custom_fields.{format}`     | Core (proxy)        | Returns every custom field with permitted attributes.                           |
 | Show custom field   | GET       | `/extended_api/custom_fields/:id.{format}` | Extended only (new) | Includes field format, visibility, possible values, trackers, etc.              |
-| Create custom field | POST      | `/extended_api/custom_fields.{format}`     | Extended only (new) | Provide the type (e.g. `IssueCustomField`) and attributes under `custom_field`; without a valid type: `422`. |
+| Create custom field | POST      | `/extended_api/custom_fields.{format}`     | Extended only (new) | Provide the type (e.g. `IssueCustomField`) at the top level, next to `custom_field`, and the attributes under `custom_field`. A `type` inside `custom_field` is not read: without a valid top-level type the answer is `422`. |
 | Update custom field | PUT/PATCH | `/extended_api/custom_fields/:id.{format}` | Extended only (new) | Supports mass updates of trackers, roles, visibility, and plugin attributes.    |
 | Delete custom field | DELETE    | `/extended_api/custom_fields/:id.{format}` | Extended only (new) | Removes the field; follows the same validations as the UI.                      |
 

@@ -17,13 +17,22 @@ unless defined?(safe_boolean)
   end
 end
 
-api.extended_api do
-  metadata = extended_api_metadata
-  api.mode metadata[:mode]
-  api.fallback_to_native metadata[:fallback_to_native]
+metadata = extended_api_metadata
+array_options = nil
+# XML has one root element: there the metadata are attributes of the array, like core's
+# total_count (left out with nometa). JSON keeps it at the top level, next to the array. ===
+# because the JSON builder is a BasicObject (an is_a? call would become a JSON key).
+if Redmine::Views::Builders::Xml === api
+  array_options = api_meta(extended_api_mode: metadata[:mode],
+                           extended_api_fallback_to_native: metadata[:fallback_to_native])
+else
+  api.extended_api do
+    api.mode metadata[:mode]
+    api.fallback_to_native metadata[:fallback_to_native]
+  end
 end
 
-api.array :enumerations do
+api.array :enumerations, array_options do
   (@enumeration_sets || []).each do |set|
     type_name = set[:type]
     (set[:enumerations] || []).each do |enumeration|

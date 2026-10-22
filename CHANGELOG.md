@@ -41,3 +41,5 @@
 * Issue, Journal and Attachment are patched with prepend instead of alias_method (recursed next to redmine_stealth).
 * Fixed: DELETE of a tracker in use gives core's reason on Redmine 5.1 too, instead of only "Unable to delete tracker".
 * Runs on Redmine 5.1, 6.1 and 7.0 (decision of Jan, 2026-10-13, replacing "Redmine 7 only" of 2026-10-07); the webhook patch is applied only where Redmine has webhooks (7.0). Tested on 5.1-stable, 6.1-stable and 7.0-stable-GEOxyz with PostgreSQL; integration tests against a real Redmine and end to end scenarios in test/e2e.
+* Fixed: the .xml answers of the extended endpoints (trackers, roles, issue statuses, enumerations, custom fields, the journal of an issue update) had two top-level elements, so XML parsers refused them. The extended_api block is now inside the record's element (attributes of the array for the enumeration list). JSON unchanged.
+* README: `copy_workflow_from` and a custom field's `type` belong at the top level of the request, not inside `tracker` / `custom_field`.

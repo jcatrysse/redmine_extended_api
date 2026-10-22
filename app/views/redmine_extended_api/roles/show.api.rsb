@@ -1,10 +1,18 @@
-api.extended_api do
+# XML has one root element: there the metadata is the first element inside the record's
+# element. JSON keeps it at the top level, next to the record. === because the JSON builder
+# is a BasicObject (an is_a? call would become a JSON key).
+metadata_inside_root = Redmine::Views::Builders::Xml === api
+extended_api = proc do
   metadata = extended_api_metadata
-  api.mode metadata[:mode]
-  api.fallback_to_native metadata[:fallback_to_native]
+  api.extended_api do
+    api.mode metadata[:mode]
+    api.fallback_to_native metadata[:fallback_to_native]
+  end
 end
+extended_api.call unless metadata_inside_root
 
 api.role do
+  extended_api.call if metadata_inside_root
   api.id @role.id
   api.name @role.name
   api.position @role.position

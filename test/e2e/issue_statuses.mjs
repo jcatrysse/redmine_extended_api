@@ -19,7 +19,8 @@ a.expect(await a.call('GET', `/extended_api/issue_statuses/${id}.json`), 200);
 const updated = a.expect(await a.call('PUT', `/extended_api/issue_statuses/${id}.json`,
   { data: { issue_status: { name: `${name} closed`, is_closed: true } } }), 200);
 a.check(updated.json?.issue_status?.is_closed === true, 'update: is_closed not saved');
-a.expect(await a.call('GET', `/extended_api/issue_statuses/${id}.xml`), 200);
+const xml = a.expect(await a.call('GET', `/extended_api/issue_statuses/${id}.xml`), 200);
+a.check(/^<\?xml[^>]*\?><issue_status><extended_api><mode>extended<\/mode>[\s\S]*<\/issue_status>$/.test(xml.text), 'show as XML: not one <issue_status> root with extended_api inside');
 await a.show('admin-crud', 'Admin creates (201), shows, updates (200) an issue status under /extended_api; JSON and XML, marked "extended"');
 
 await t.login('admin');

@@ -20,7 +20,8 @@ const created = a.expect(await a.call('POST', '/extended_api/enumerations.json',
 const id = created.json?.enumeration?.id;
 const updated = a.expect(await a.call('PUT', `/extended_api/enumerations/${id}.json`, { data: { enumeration: { name: `${name} v2`, active: false } } }), 200);
 a.check(updated.json?.enumeration?.active === false, 'update: active not saved');
-a.expect(await a.call('GET', `/extended_api/enumerations/${id}.xml`), 200);
+const xml = a.expect(await a.call('GET', `/extended_api/enumerations/${id}.xml`), 200);
+a.check(/^<\?xml[^>]*\?><enumeration><extended_api><mode>extended<\/mode>[\s\S]*<\/enumeration>$/.test(xml.text), 'show as XML: not one <enumeration> root with extended_api inside');
 await a.show('admin-crud', 'Index of all enumerations and by type (also for a non-admin, as in core), admin creates and updates a time entry activity');
 a.check(!!prios.json, 'index by type: no JSON');
 

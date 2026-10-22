@@ -20,7 +20,8 @@ const updated = a.expect(await a.call('PATCH', `/extended_api/trackers/${id}.jso
   data: { tracker: { core_fields: ['assigned_to_id', 'due_date', 'category_id'], is_in_roadmap: false } },
 }), 200);
 a.check(updated.json?.tracker?.core_fields?.includes('category_id'), 'update: core_fields not saved');
-a.expect(await a.call('GET', `/extended_api/trackers/${id}.xml`), 200);
+const xml = a.expect(await a.call('GET', `/extended_api/trackers/${id}.xml`), 200);
+a.check(/^<\?xml[^>]*\?><tracker><extended_api><mode>extended<\/mode>[\s\S]*<\/tracker>$/.test(xml.text), 'show as XML: not one <tracker> root with extended_api inside');
 await a.show('admin-crud', 'Admin creates a tracker linked to e2e-project with workflow copied from Bug (201), updates its fields (200), shows it as XML');
 
 await t.go('/trackers');

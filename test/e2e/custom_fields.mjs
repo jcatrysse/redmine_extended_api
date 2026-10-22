@@ -31,7 +31,8 @@ const renamed = a.expect(await a.call('PATCH', `/extended_api/custom_fields/${en
 const after = renamed.json?.custom_field?.enumerations || [];
 a.check(after.find(o => o.id === third?.id)?.name === 'Third-party vendor', `update: option ${third?.id} not renamed in place: ${JSON.stringify(after)}`);
 a.check(String(renamed.json?.custom_field?.default_value) === String(code?.id), `update: default_value ${renamed.json?.custom_field?.default_value}`);
-a.expect(await a.call('GET', `/extended_api/custom_fields/${listId}.xml`), 200);
+const xml = a.expect(await a.call('GET', `/extended_api/custom_fields/${listId}.xml`), 200);
+a.check(/^<\?xml[^>]*\?><custom_field><extended_api><mode>extended<\/mode>[\s\S]*<\/custom_field>$/.test(xml.text), 'show as XML: not one <custom_field> root with extended_api inside');
 await a.show('admin-update', 'Admin renames and deactivates an option of the enumeration field keeping its id, sets the default (200); show as XML');
 
 await t.go('/custom_fields?tab=IssueCustomField');
