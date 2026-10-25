@@ -64,3 +64,5 @@ WatchersController.prepend RedmineExtendedApi::Sprintly::ControllerPatches::Watc
 VersionsController.prepend RedmineExtendedApi::Sprintly::ControllerPatches::VersionsControllerPatch
 WikiController.prepend RedmineExtendedApi::Sprintly::ControllerPatches::WikiControllerPatch
 TimelogController.prepend RedmineExtendedApi::Sprintly::ControllerPatches::TimelogControllerPatch
+AttachmentsController.prepend RedmineExtendedApi::Sprintly::ControllerPatches::AttachmentsControllerPatch
+FilesController.prepend RedmineExtendedApi::Sprintly::ControllerPatches::FilesControllerPatch

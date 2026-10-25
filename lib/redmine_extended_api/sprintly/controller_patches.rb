@@ -97,6 +97,46 @@ module RedmineExtendedApi
         end
       end
 
+      # Gists are files of the project's Files module, and core puts all of them under one
+      # `manage_files`. Adding one is `gists.create` (FilesController below); renaming one is
+      # `gists.edit`, deleting one `gists.delete` — here, for files of a project or a version
+      # only: an issue's or a wiki page's attachments keep core's rules.
+      module AttachmentsControllerPatch
+        include Guard
+
+        def self.prepended(base)
+          base.before_action :sprintly_check_gist, only: %i[update destroy]
+        end
+
+        private
+
+        def sprintly_check_gist
+          return true unless sprintly_enforced? && @attachment
+
+          container = @attachment.container
+          return true unless container.is_a?(Project) || container.is_a?(Version)
+
+          project = container.is_a?(Project) ? container : container.project
+          sprintly_allowed?(action_name == 'destroy' ? 'gists.delete' : 'gists.edit', project) || sprintly_deny
+        end
+      end
+
+      module FilesControllerPatch
+        include Guard
+
+        def self.prepended(base)
+          base.before_action :sprintly_check_gist_create, only: %i[create]
+        end
+
+        private
+
+        def sprintly_check_gist_create
+          return true unless sprintly_enforced?
+
+          sprintly_allowed?('gists.create') || sprintly_deny
+        end
+      end
+
       # Editing: `time.edit` for anybody's entries, `time.edit_own` for your own. Deleting:
       # `time.delete`. (Core lets whoever may edit an entry also delete it.)
       module TimelogControllerPatch

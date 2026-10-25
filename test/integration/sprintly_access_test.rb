@@ -257,6 +257,31 @@ class SprintlyAccessTest < Redmine::ApiTest::Base
     assert_response :no_content
   end
 
+  def test_gists_create_rename_and_delete_are_separate
+    import!
+    save_role('Developer', DEV + ['gists.edit'])
+    post '/uploads.json?filename=gist.txt', params: 'gist', headers: auth('dlopper').merge('CONTENT_TYPE' => 'application/octet-stream')
+    assert_response :created
+    token = JSON.parse(response.body)['upload']['token']
+    post '/projects/1/files.json', params: { file: { token: token, filename: 'gist.txt' } }.to_json, headers: json_headers('dlopper')
+    assert_response :forbidden
+
+    patch '/attachments/8.json', params: { attachment: { filename: 'renamed.zip' } }.to_json, headers: json_headers('dlopper')
+    assert_response :no_content
+    delete '/attachments/8.json', headers: auth('dlopper')
+    assert_response :forbidden
+    delete '/attachments/12.json', headers: auth('dlopper')
+    assert_response :forbidden, 'a sprint file is a gist too'
+
+    save_role('Developer', DEV + %w[gists.create gists.delete])
+    post '/projects/1/files.json', params: { file: { token: token, filename: 'gist.txt' } }.to_json, headers: json_headers('dlopper')
+    assert_response :no_content
+    patch '/attachments/8.json', params: { attachment: { filename: 'again.zip' } }.to_json, headers: json_headers('dlopper')
+    assert_response :forbidden
+    delete '/attachments/8.json', headers: auth('dlopper')
+    assert_response :no_content
+  end
+
   def test_creating_projects_is_a_global_permission
     import!
     creator = save_role('Creator', DEV + ['projects.create'])

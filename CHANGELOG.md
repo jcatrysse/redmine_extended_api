@@ -35,3 +35,4 @@
 * New `/sprintly/...` endpoints (also under `/extended_api`): `me`, `roles`, `assignments`, `projects/:id/assignments`, `import`, `principals`, `custom_fields`, `app_config`.
 * Finer checks than core: status changes without configured workflows, assignee/priority/sprint fields, watching others, sprint create/edit/delete, wiki create vs edit, time entry edit/delete, project creation as a global permission.
 * Inert until a tenant is imported (`POST /sprintly/import`).
+* Gists (project and sprint files): adding needs `gists.create`, renaming `gists.edit`, deleting `gists.delete`; core grants all three with `manage_files`.
