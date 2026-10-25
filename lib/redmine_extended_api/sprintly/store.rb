@@ -54,6 +54,9 @@ module RedmineExtendedApi
       def update!
         Setting.transaction do
           Setting.where(name: SETTING_NAME).lock.first
+          # Settings are cached per process; another worker may have written since this
+          # request checked the cache, so read the locked row, not the cache.
+          Setting.clear_cache
           data = read || blank_document
           result = yield data
           write!(data)

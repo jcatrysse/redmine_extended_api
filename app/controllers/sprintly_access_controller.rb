@@ -184,8 +184,9 @@ class SprintlyAccessController < ApplicationController
     end
     welcome = Setting.welcome_text.to_s
     settings['welcome_text'] = welcome.sub(LEGACY_CONFIG, '').rstrip
-    data = Store.read
-    settings['company_icon'] = data ? data['company_icon'] : legacy_config(welcome)['companyIcon']
+    # The global settings screen still keeps the logo in the welcome_text config; the copy the
+    # import took is only a fallback.
+    settings['company_icon'] = legacy_config(welcome)['companyIcon'] || Store.read&.dig('company_icon')
     render json: { settings: settings }
   end
 
