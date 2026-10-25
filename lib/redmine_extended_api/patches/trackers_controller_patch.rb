@@ -82,7 +82,8 @@ module RedmineExtendedApi
           message = I18n.t(
             :error_can_not_delete_tracker_html,
             projects: project_names,
-            default: I18n.t(:notice_failed_to_update, default: 'Unable to delete tracker')
+            # Redmine 5.1 has no _html key with the projects
+            default: I18n.t(:error_can_not_delete_tracker, default: 'Unable to delete tracker')
           )
           render_api_error_message(ActionController::Base.helpers.strip_tags(message))
         end

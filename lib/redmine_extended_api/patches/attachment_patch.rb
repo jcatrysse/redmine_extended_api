@@ -12,29 +12,22 @@ module RedmineExtendedApi
 
       EXTENDED_API_ATTACHMENT_OVERRIDE_ATTRIBUTES = %i[author_id created_on].freeze
 
-      included do
+      # Prepended (Attachment.prepend), not alias_method, and safe_attributes= is not overridden
+      # (see IssuePatch): the overrides are set before validation.
+      prepended do
         class_attribute :extended_api_attachment_override_attributes, instance_accessor: false
         self.extended_api_attachment_override_attributes ||= EXTENDED_API_ATTACHMENT_OVERRIDE_ATTRIBUTES
-
-        if method_defined?(:safe_attributes=)
-          unless method_defined?(:safe_attributes_without_extended_api_attachment=)
-            alias_method :safe_attributes_without_extended_api_attachment=, :safe_attributes=
-            alias_method :safe_attributes=, :safe_attributes_with_extended_api_attachment=
-          end
-        end
 
         before_validation :apply_extended_api_attachment_overrides_callback if respond_to?(:before_validation)
         after_save :apply_extended_api_attachment_overrides_after_save if respond_to?(:after_save)
       end
 
-      def safe_attributes_with_extended_api_attachment=(attrs, user = (defined?(User) ? User.current : nil))
-        send(:safe_attributes_without_extended_api_attachment=, attrs, user)
-        apply_extended_api_attachment_overrides(user)
-      end
-
       private
 
+      # only the attachment the request creates (the upload), not one saved along with it
       def apply_extended_api_attachment_overrides_callback
+        return unless new_record?
+
         apply_extended_api_attachment_overrides(defined?(User) ? User.current : nil)
       end
 
@@ -55,6 +48,7 @@ module RedmineExtendedApi
 
       def apply_extended_api_attachment_overrides_after_save
         return if Thread.current[:redmine_extended_api_applying_attachment_overrides]
+        return unless saved_change_to_id?
 
         overrides = Thread.current[:redmine_extended_api_attachment_overrides]
         return unless overrides.is_a?(Hash)

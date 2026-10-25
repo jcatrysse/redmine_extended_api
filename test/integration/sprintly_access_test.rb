@@ -174,9 +174,12 @@ class SprintlyAccessTest < Redmine::ApiTest::Base
                           headers: json_headers('dlopper')
     assert_response :no_content
     issue = Issue.find(1)
-    assert_equal before.assigned_to_id, issue.assigned_to_id
+    # Fixture issue 1 starts unassigned and outside any sprint (Minitest 6 refuses assert_equal nil).
+    assert_nil before.assigned_to_id
+    assert_nil before.fixed_version_id
+    assert_nil issue.assigned_to_id
     assert_equal before.priority_id, issue.priority_id
-    assert_equal before.fixed_version_id, issue.fixed_version_id
+    assert_nil issue.fixed_version_id
     assert_equal 'Edited', issue.subject
 
     save_role('Developer', DEV + %w[issues.assign issues.change_priority])

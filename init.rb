@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 require_relative 'lib/redmine_extended_api'
 require_relative 'lib/redmine_extended_api/custom_fields/attribute_policy'
+require_relative 'lib/redmine_extended_api/mail_suppression_interceptor'
 require_relative 'lib/redmine_extended_api/patches/api_helpers'
 require_relative 'lib/redmine_extended_api/patches/attachments_controller_patch'
 require_relative 'lib/redmine_extended_api/patches/attachment_patch'
@@ -15,6 +16,7 @@ require_relative 'lib/redmine_extended_api/patches/notification_suppression_patc
 require_relative 'lib/redmine_extended_api/patches/roles_controller_patch'
 require_relative 'lib/redmine_extended_api/patches/settings_controller_patch'
 require_relative 'lib/redmine_extended_api/patches/trackers_controller_patch'
+require_relative 'lib/redmine_extended_api/patches/webhook_patch'
 require_relative 'lib/redmine_extended_api/proxy_app'
 require_relative 'lib/redmine_extended_api/sprintly/permissions'
 require_relative 'lib/redmine_extended_api/sprintly/store'
@@ -28,7 +30,7 @@ Redmine::Plugin.register :redmine_extended_api do
   description 'This plugin extends the default Redmine API by adding new endpoints and enabling write operations where only read access was previously available.'
   url 'https://github.com/jcatrysse/redmine_extended_api'
   version '0.1.0'
-  requires_redmine version_or_higher: '5.0'
+  requires_redmine version_or_higher: '5.1'
 
   # SPR-383: storage of the Sprintly role model (see Sprintly::Store). No settings page.
   settings default: { 'sprintly_access' => '' }
@@ -40,20 +42,24 @@ Redmine::Plugin.register :redmine_extended_api do
   end
 end
 
-Attachment.include RedmineExtendedApi::Patches::AttachmentPatch
+Attachment.prepend RedmineExtendedApi::Patches::AttachmentPatch
 AttachmentsController.prepend RedmineExtendedApi::Patches::AttachmentsControllerPatch
 CustomFieldsController.prepend RedmineExtendedApi::Patches::CustomFieldsControllerPatch
 EnumerationsController.prepend RedmineExtendedApi::Patches::EnumerationsControllerPatch
-Issue.include RedmineExtendedApi::Patches::IssuePatch
+Issue.prepend RedmineExtendedApi::Patches::IssuePatch
 Issue.include RedmineExtendedApi::Patches::NotificationSuppressionPatch
 IssueRelationsController.prepend RedmineExtendedApi::Patches::IssueRelationsControllerPatch
 IssuesController.prepend RedmineExtendedApi::Patches::IssuesControllerPatch
 IssueStatusesController.prepend RedmineExtendedApi::Patches::IssueStatusesControllerPatch
 Journal.include RedmineExtendedApi::Patches::NotificationSuppressionPatch
 Journal.include RedmineExtendedApi::Patches::JournalPatch
+ActionMailer::Base.register_interceptor(RedmineExtendedApi::MailSuppressionInterceptor)
 RolesController.prepend RedmineExtendedApi::Patches::RolesControllerPatch
 SettingsController.prepend RedmineExtendedApi::Patches::SettingsControllerPatch
 TrackersController.prepend RedmineExtendedApi::Patches::TrackersControllerPatch
+
+# Webhooks are new in Redmine 7
+Webhook.singleton_class.prepend RedmineExtendedApi::Patches::WebhookPatch if defined?(::Webhook)
 
 # SPR-383: server-side enforcement of the Sprintly role model; inert until the tenant is imported.
 Issue.prepend RedmineExtendedApi::Sprintly::ModelPatches::IssuePatch

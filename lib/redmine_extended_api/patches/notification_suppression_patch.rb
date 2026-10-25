@@ -2,31 +2,21 @@
 
 module RedmineExtendedApi
   module Patches
+    # Included in Issue and Journal; send_notification is not overridden. Prepending it recursed
+    # next to a plugin that alias_method-chains it later (Redmine 5.1/6.1), alias_method next to
+    # one that prepends it (redmine_stealth). Core's send_notification (after_create_commit) does
+    # nothing when notify? is false, so the records saved while the request's flag is set get
+    # notify = false before they are saved.
     module NotificationSuppressionPatch
       def self.included(base)
-        base.class_eval do
-          next unless
-            method_defined?(:send_notification) ||
-            private_method_defined?(:send_notification) ||
-            protected_method_defined?(:send_notification)
-
-          visibility = if private_method_defined?(:send_notification)
-                          :private
-                        elsif protected_method_defined?(:send_notification)
-                          :protected
-                        else
-                          :public
-                        end
-
-          alias_method :send_notification_without_extended_api, :send_notification
-          alias_method :send_notification, :send_notification_with_extended_api
-          send(visibility, :send_notification)
-        end
+        base.before_save :apply_extended_api_notification_suppression
       end
 
-      def send_notification_with_extended_api(*args)
-        return if Thread.current[:redmine_extended_api_suppress_notifications]
-        send_notification_without_extended_api(*args)
+      private
+
+      def apply_extended_api_notification_suppression
+        self.notify = false if Thread.current[:redmine_extended_api_suppress_notifications]
+        nil
       end
     end
   end

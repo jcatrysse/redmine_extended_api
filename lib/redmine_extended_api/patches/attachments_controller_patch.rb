@@ -14,6 +14,10 @@ module RedmineExtendedApi
 
         previous_overrides = Thread.current[:redmine_extended_api_attachment_overrides]
         overrides = extract_attachment_override_attributes
+        if allow_extended_api_attachment_overrides?
+          errors = extended_api_override_errors(overrides)
+          return render_api_error_message(errors) if errors.any?
+        end
         Thread.current[:redmine_extended_api_attachment_overrides] =
           allow_extended_api_attachment_overrides? ? overrides : {}
 

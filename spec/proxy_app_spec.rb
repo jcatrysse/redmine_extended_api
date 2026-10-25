@@ -37,8 +37,21 @@ RSpec.describe RedmineExtendedApi::ProxyApp do
       expect(rewritten['action_dispatch.original_fullpath']).to eq('/issues.json?key=123')
       expect(rewritten).not_to have_key('rack.request.query_string')
       expect(rewritten).not_to have_key('rack.request.query_hash')
-      expect(rewritten).not_to have_key('rack.request.form_hash')
-      expect(rewritten).not_to have_key('rack.request.form_vars')
+    end
+
+    it 'keeps the parsed form of the request, which the rewrite does not change' do
+      input = StringIO.new('issue[subject]=x')
+      form = {
+        'rack.input' => input,
+        'rack.request.form_input' => input,
+        'rack.request.form_hash' => { 'issue' => { 'subject' => 'x' } },
+        'rack.request.form_pairs' => [%w[issue[subject] x]],
+        'rack.request.form_vars' => 'issue[subject]=x'
+      }
+
+      rewritten = rewrite_env({ 'SCRIPT_NAME' => '/extended_api', 'PATH_INFO' => '/issues.json' }.merge(form))
+
+      form.each { |key, value| expect(rewritten[key]).to be(value) }
     end
 
     it 'retains the relative URL root when present' do

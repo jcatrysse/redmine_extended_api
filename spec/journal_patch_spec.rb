@@ -12,6 +12,27 @@ RSpec.describe RedmineExtendedApi::Patches::JournalPatch do
 
       def self.after_save(_callback = nil); end
 
+      def self.before_validation(_callback = nil); end
+
+      attr_writer :journalized_id, :new_record
+
+      # a new journal on issue 42, saved by this request
+      def journalized_type
+        'Issue'
+      end
+
+      def journalized_id
+        @journalized_id || 42
+      end
+
+      def new_record?
+        @new_record != false
+      end
+
+      def saved_change_to_id?
+        true
+      end
+
       def update_columns(cols)
         @update_columns_calls ||= []
         @update_columns_calls << cols
@@ -21,7 +42,11 @@ RSpec.describe RedmineExtendedApi::Patches::JournalPatch do
         @update_columns_calls ||= []
       end
 
-      def assign_attributes(_cols); end
+      def assign_attributes(cols)
+        (@assigned_attributes ||= {}).merge!(cols)
+      end
+
+      attr_reader :assigned_attributes
     end.tap { |klass| klass.include described_class }
   end
 
@@ -41,6 +66,48 @@ RSpec.describe RedmineExtendedApi::Patches::JournalPatch do
 
   after do
     Thread.current[:redmine_extended_api_journal_overrides] = nil
+    Thread.current[:redmine_extended_api_issue_target_id] = nil
+  end
+
+  # the request updates issue 42
+  before { Thread.current[:redmine_extended_api_issue_target_id] = '42' }
+
+  # moved here from issue_patch_spec: the overrides were set in Issue#init_journal before
+  it 'applies journal overrides before validation for admins (pre-save on the new journal)' do
+    User.current = admin_user
+    Thread.current[:redmine_extended_api_journal_overrides] = {
+      user_id: 9, updated_by_id: 4, created_on: '2020-02-01', updated_on: '2020-02-02', other: 'x'
+    }
+
+    journal.send(:apply_extended_api_journal_overrides_before_validation)
+
+    expect(journal.assigned_attributes).to eq(user_id: 9, updated_by_id: 4, created_on: '2020-02-01', updated_on: '2020-02-02')
+  end
+
+  it 'does not apply journal overrides before validation for non-admin users' do
+    User.current = non_admin_user
+    Thread.current[:redmine_extended_api_journal_overrides] = { user_id: 9, updated_on: '2020-02-02' }
+
+    journal.send(:apply_extended_api_journal_overrides_before_validation)
+
+    expect(journal.assigned_attributes).to be_nil
+  end
+
+  # A request that closes duplicates or adds relations writes journals on other issues too;
+  # they kept the overrides of the imported journal before.
+  it 'leaves journals on other issues, and existing journals, alone' do
+    User.current = admin_user
+    Thread.current[:redmine_extended_api_journal_overrides] = { user_id: 9, created_on: '2020-02-01 10:00:00' }
+
+    other = journal_class.new.tap { |j| j.journalized_id = 7 }
+    other.send(:apply_extended_api_journal_overrides_before_validation)
+    other.send(:apply_extended_api_journal_overrides_after_save)
+    existing = journal_class.new.tap { |j| j.new_record = false }
+    existing.send(:apply_extended_api_journal_overrides_before_validation)
+
+    expect(other.assigned_attributes).to be_nil
+    expect(other.update_columns_calls).to be_empty
+    expect(existing.assigned_attributes).to be_nil
   end
 
   it 'forces journal overrides after save using update_columns for admins' do

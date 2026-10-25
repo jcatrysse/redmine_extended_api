@@ -89,6 +89,8 @@ RSpec.describe RedmineExtendedApi::Patches::IssuesControllerPatch do
                                   'redmine_extended_api.original_script_name' => '',
                                   'redmine_extended_api.original_path_info' => '/extended_api/issues.json'
                                 })
+    Time.zone = 'UTC'
+    allow(controller).to receive(:extended_api_user_exists?).and_return(true)
   end
 
   after do
@@ -104,7 +106,8 @@ RSpec.describe RedmineExtendedApi::Patches::IssuesControllerPatch do
   it 'wraps create with notification suppression and timestamp control' do
     controller.params = {issue: {author_id: 5, created_on: '2020-01-01', closed_on: '2020-03-03'}, notify: '0'}
 
-    expect(Mailer).to receive(:with_deliveries).with(false).and_yield
+    # thread-local suppression only; Mailer.with_deliveries switched mail off for every thread
+    expect(Mailer).not_to receive(:with_deliveries)
 
     expect(controller.create).to eq(:base_create)
     expect(controller.thread_snapshot).to eq(author_id: 5, created_on: '2020-01-01', closed_on: '2020-03-03')
@@ -161,6 +164,16 @@ RSpec.describe RedmineExtendedApi::Patches::IssuePatch do
 
       def self.after_save(*); end
 
+      def self.before_validation(*); end
+
+      def persisted?
+        true
+      end
+
+      def id
+        42
+      end
+
       def init_journal(user, notes = '')
         @init_journal_args = [user, notes]
         @current_journal = Journal.new
@@ -174,7 +187,7 @@ RSpec.describe RedmineExtendedApi::Patches::IssuePatch do
       def safe_attributes=(attrs, user = nil)
         @safe_attributes_payload = attrs
       end
-      end.tap { |klass| klass.include described_class }
+      end.tap { |klass| klass.prepend described_class }
     end
 
   let(:issue) { issue_class.new }
@@ -207,6 +220,7 @@ RSpec.describe RedmineExtendedApi::Patches::IssuePatch do
     Thread.current[:redmine_extended_api_issue_overrides] = nil
     Thread.current[:redmine_extended_api_journal_overrides] = nil
     Thread.current[:redmine_extended_api_suppress_notifications] = nil
+    Thread.current[:redmine_extended_api_issue_target_id] = nil
   end
 
   it 'applies override attributes for admins' do
@@ -219,7 +233,8 @@ RSpec.describe RedmineExtendedApi::Patches::IssuePatch do
       other: 'ignored'
     }
 
-    issue.safe_attributes=({subject: 'New'})
+    Thread.current[:redmine_extended_api_issue_target_id] = '42'
+    issue.send(:apply_extended_api_issue_overrides_before_validation)
 
     expect(issue.assigned_attributes).to eq(author_id: 3, created_on: '2020-01-01', updated_on: '2020-01-02', closed_on: '2020-01-03')
   end
@@ -228,18 +243,19 @@ RSpec.describe RedmineExtendedApi::Patches::IssuePatch do
     User.current = non_admin_user
     Thread.current[:redmine_extended_api_issue_overrides] = {author_id: 3}
 
-    issue.safe_attributes=({subject: 'New'})
+    Thread.current[:redmine_extended_api_issue_target_id] = '42'
+    issue.send(:apply_extended_api_issue_overrides_before_validation)
 
     expect(issue.assigned_attributes).to be_nil
   end
 
-  it 'applies journal overrides when initialising a journal as an admin' do
+  it 'leaves init_journal to core (journal overrides: JournalPatch)' do
     User.current = admin_user
     Thread.current[:redmine_extended_api_journal_overrides] = {user_id: 9, updated_by_id: 4, updated_on: '2020-02-02'}
 
     issue.init_journal(admin_user, 'note')
 
     expect(issue.init_journal_args).to eq([admin_user, 'note'])
-    expect(issue.current_journal.attributes).to eq(user_id: 9, updated_by_id: 4, updated_on: '2020-02-02')
+    expect(issue.current_journal.attributes).to eq({})
   end
 end

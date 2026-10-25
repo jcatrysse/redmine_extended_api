@@ -38,10 +38,23 @@ RSpec.describe RedmineExtendedApi::Patches::AttachmentsControllerPatch do
       'redmine_extended_api.original_script_name' => '',
       'redmine_extended_api.original_path_info' => '/extended_api/uploads.json'
     })
+    Time.zone = 'UTC'
+    allow(controller).to receive(:extended_api_user_exists?).and_return(true)
   end
 
   after do
     Thread.current[:redmine_extended_api_attachment_overrides] = nil
+  end
+
+  it 'refuses an override that cannot be stored before the upload' do
+    controller.params = { attachment: { author_id: 5, created_on: 'yesterday-ish' } }
+    allow(controller).to receive(:allow_extended_api_attachment_overrides?).and_return(true)
+    allow(controller).to receive(:extended_api_user_exists?).with(5).and_return(false)
+
+    expect(controller).to receive(:render_api_error_message).with(['Author is invalid', 'Created on is invalid'])
+    controller.upload
+    expect(controller.thread_snapshot).to be_nil
+    expect(Thread.current[:redmine_extended_api_attachment_overrides]).to be_nil
   end
 
   it 'wraps upload with override capture' do
@@ -122,7 +135,18 @@ RSpec.describe RedmineExtendedApi::Patches::AttachmentPatch do
       def update_columns_calls
         @update_columns_calls ||= []
       end
-    end.tap { |klass| klass.include described_class }
+
+      attr_writer :new_record
+
+      # the attachment the upload creates
+      def new_record?
+        @new_record != false
+      end
+
+      def saved_change_to_id?
+        new_record?
+      end
+    end.tap { |klass| klass.prepend described_class }
   end
 
   let(:attachment) { attachment_class.new }
@@ -144,11 +168,11 @@ RSpec.describe RedmineExtendedApi::Patches::AttachmentPatch do
     Thread.current[:redmine_extended_api_applying_attachment_overrides] = nil
   end
 
-  it 'applies override attributes for admins after safe assignment' do
+  it 'applies override attributes for admins before validation' do
     User.current = admin_user
     Thread.current[:redmine_extended_api_attachment_overrides] = { author_id: 3, created_on: '2020-01-01', ignored: 'x' }
 
-    attachment.safe_attributes=({ description: 'New attachment' })
+    attachment_class.run_before_validation_callbacks(attachment)
 
     expect(attachment.assigned_attributes).to eq(author_id: 3, created_on: '2020-01-01')
   end
@@ -157,7 +181,7 @@ RSpec.describe RedmineExtendedApi::Patches::AttachmentPatch do
     User.current = non_admin_user
     Thread.current[:redmine_extended_api_attachment_overrides] = { author_id: 3 }
 
-    attachment.safe_attributes=({ description: 'New attachment' })
+    attachment_class.run_before_validation_callbacks(attachment)
 
     expect(attachment.assigned_attributes).to be_nil
   end
@@ -169,6 +193,18 @@ RSpec.describe RedmineExtendedApi::Patches::AttachmentPatch do
     attachment_class.run_before_validation_callbacks(attachment)
 
     expect(attachment.assigned_attributes).to eq(created_on: '2020-03-03')
+  end
+
+  it 'leaves an attachment the request did not create alone' do
+    User.current = admin_user
+    Thread.current[:redmine_extended_api_attachment_overrides] = { author_id: 3, created_on: '2020-03-03 12:00:00' }
+    existing = attachment_class.new.tap { |a| a.new_record = false }
+
+    attachment_class.run_before_validation_callbacks(existing)
+    attachment_class.run_after_save_callbacks(existing)
+
+    expect(existing.assigned_attributes).to be_nil
+    expect(existing.update_columns_calls).to be_empty
   end
 
   it 'forces author_id and created_on after save using update_columns for admins' do
