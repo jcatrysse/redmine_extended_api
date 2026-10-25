@@ -22,19 +22,27 @@ module RedmineExtendedApi
           Role.all.to_a.select(&:consider_workflow?)
         end
 
-        # Assignee, priority and sprint are editable only with their own permission. Redmine
-        # drops read-only attributes from the update, so the rest of the edit still goes through.
+        FIELD_PERMISSIONS = {
+          'issues.assign' => 'assigned_to_id',
+          'issues.change_priority' => 'priority_id',
+          'issues.set_sprint' => 'fixed_version_id'
+        }.freeze
+
+        # Assignee, priority and sprint are editable only with their own permission, on new
+        # issues too (as in Jira). Every other field of an existing issue needs `issues.edit` —
+        # `edit_issues` alone may have come from one of the narrower permissions. Redmine drops
+        # read-only attributes from an update, so the permitted part of an edit still goes through.
         def read_only_attribute_names(user = nil)
           names = super
           user ||= User.current
           return names unless ModelPatches.active_for?(user) && project
 
-          {
-            'issues.assign' => 'assigned_to_id',
-            'issues.change_priority' => 'priority_id',
-            'issues.set_sprint' => 'fixed_version_id'
-          }.each do |app_id, attribute|
+          FIELD_PERMISSIONS.each do |app_id, attribute|
             names |= [attribute] unless user.allowed_to?(Permissions.symbol_for(app_id), project)
+          end
+          if !new_record? && !user.allowed_to?(Permissions.symbol_for('issues.edit'), project)
+            names |= Tracker::CORE_FIELDS_ALL - FIELD_PERMISSIONS.values
+            names |= available_custom_fields.map { |field| field.id.to_s }
           end
           names
         end

@@ -52,6 +52,12 @@ module RedmineExtendedApi
         'issues.view' => %i[view_issues view_issue_watchers add_issue_watchers delete_issue_watchers],
         'issues.create' => %i[add_issues copy_issues import_issues set_own_issues_private],
         'issues.edit' => %i[edit_issues set_issues_private set_own_issues_private],
+        # Redmine lets an existing issue be changed only with `edit_issues`; these four bring it
+        # too, and IssuePatch keeps every other field read-only without `issues.edit`.
+        'issues.change_status' => %i[edit_issues],
+        'issues.assign' => %i[edit_issues],
+        'issues.change_priority' => %i[edit_issues],
+        'issues.set_sprint' => %i[edit_issues],
         'issues.delete' => %i[delete_issues],
         # SPR-117: a comment belongs to whoever wrote it — editing and deleting your own comes
         # with the right to comment, and there is no "any comment" grant to derive.

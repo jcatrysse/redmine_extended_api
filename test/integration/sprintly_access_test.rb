@@ -185,6 +185,25 @@ class SprintlyAccessTest < Redmine::ApiTest::Base
     assert_equal 6, Issue.find(1).priority_id
   end
 
+  def test_a_field_permission_works_without_edit_and_edit_covers_the_rest
+    import!
+    assigner = save_role('Assigner', %w[issues.view issues.create issues.assign projects.view])
+    override(1, 3, assigner)
+    put '/issues/1.json', params: { issue: { assigned_to_id: 2, subject: 'Not mine to change' } }.to_json,
+                          headers: json_headers('dlopper')
+    assert_response :no_content
+    issue = Issue.find(1)
+    assert_equal 2, issue.assigned_to_id
+    refute_equal 'Not mine to change', issue.subject
+
+    post '/projects/1/issues.json', params: { issue: { tracker_id: 1, subject: 'New one', priority_id: 6 } }.to_json,
+                                    headers: json_headers('dlopper')
+    assert_response :created
+    created = Issue.order(:id).last
+    assert_equal 'New one', created.subject, 'creating sets the fields without issues.edit'
+    refute_equal 6, created.priority_id, 'but not priority without its own permission'
+  end
+
   def test_watching_yourself_is_free_watching_others_needs_assign
     import!
     post '/issues/2/watchers.json', params: { user_id: 3 }.to_json, headers: json_headers('dlopper')
