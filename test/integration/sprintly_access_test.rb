@@ -1,0 +1,367 @@
+# frozen_string_literal: true
+
+require File.expand_path('../../../../test/test_helper', __dir__)
+
+# SPR-383: the Sprintly role model end to end, over the REST API, on Redmine's fixtures.
+#
+# Fixtures used: project 1 (ecookbook, public) has jsmith (2, Manager) and dlopper (3,
+# Developer) as members; only `admin` (1) is a Redmine administrator, and that account is
+# not managed by the role model.
+class SprintlyAccessTest < Redmine::ApiTest::Base
+  Permissions = RedmineExtendedApi::Sprintly::Permissions
+  Store = RedmineExtendedApi::Sprintly::Store
+
+  DEV = %w[issues.view issues.create issues.edit issues.add_notes issues.change_status sprints.view
+           wiki.view wiki.edit time.view time.log time.edit_own gists.view projects.view
+           sections.board sections.issues].freeze
+  VIEWER = %w[issues.view issues.add_notes wiki.view time.view projects.view].freeze
+
+  def setup
+    super
+    Store.clear!
+  end
+
+  def import_config(extra = {})
+    {
+      roles: [
+        { key: 'admin', name: 'Administrator', description: 'Everything', permissions: Permissions::APP_PERMISSIONS, preset: 'admin' },
+        { key: 'developer', name: 'Developer', description: 'Works on issues', permissions: DEV, preset: 'developer' },
+        { key: 'viewer', name: 'Viewer', description: 'Reads', permissions: VIEWER, preset: 'viewer' }
+      ],
+      users: { '2' => ['admin'], '3' => ['developer'] },
+      groups: {},
+      default_role: 'viewer',
+      projects: {},
+      company_icon: { attachmentId: 7 }
+    }.merge(extra)
+  end
+
+  PASSWORDS = { 'dlopper' => 'foo' }.freeze
+
+  def auth(login)
+    credentials(login, PASSWORDS[login])
+  end
+
+  def json_headers(login)
+    auth(login).merge('CONTENT_TYPE' => 'application/json')
+  end
+
+  def import!(config = import_config)
+    post '/sprintly/import.json', params: { import: config }.to_json, headers: json_headers('admin')
+    assert_response :success
+    JSON.parse(response.body)['roles'].index_by { |r| r['name'] }
+  end
+
+  def me(login)
+    get '/sprintly/me.json', headers: auth(login)
+    assert_response :success
+    JSON.parse(response.body)['me']
+  end
+
+  def role_named(name)
+    Role.givable.find_by!(name: name)
+  end
+
+  def save_role(name, permissions)
+    role = Role.givable.find_by(name: name)
+    body = { role: { name: name, permissions: permissions } }.to_json
+    if role
+      put "/sprintly/roles/#{role.id}.json", params: body, headers: json_headers('jsmith')
+    else
+      post '/sprintly/roles.json', params: body, headers: json_headers('jsmith')
+    end
+    assert_response :success
+    Role.givable.find_by!(name: name)
+  end
+
+  def override(project_id, user_id, role)
+    put "/sprintly/projects/#{project_id}/assignments.json",
+        params: { assignments: { users: { user_id.to_s => [role.id] } } }.to_json, headers: json_headers('jsmith')
+    assert_response :success
+  end
+
+  # ---- before the import -------------------------------------------------------------
+
+  def test_before_import_nothing_is_enforced_and_the_first_user_becomes_admin
+    payload = me('dlopper')
+    assert_equal false, payload['initialized']
+    # Nobody but the unmanaged `admin` administers this tenant: the first person in does.
+    assert payload['admin']
+    assert User.find(3).admin?
+    refute User.find(2).reload.admin?
+  end
+
+  def test_before_import_core_permissions_rule
+    User.find(3).update_column(:admin, true) # an administrator exists, no bootstrap
+    put '/issues/1.json', params: { issue: { assigned_to_id: 2 } }.to_json, headers: json_headers('dlopper')
+    assert_response :no_content
+    assert_equal 2, Issue.find(1).assigned_to_id
+  end
+
+  # ---- the import ----------------------------------------------------------------------
+
+  def test_import_switches_the_tenant_over
+    roles = import!
+
+    assert_equal %w[Administrator Developer Viewer], roles.keys.first(3)
+    assert_equal 2, roles['Developer']['id'], 'the existing Developer role is reused'
+    assert_equal DEV.sort, roles['Developer']['permissions'].sort
+    developer = role_named('Developer')
+    assert developer.has_permission?(:view_issues)
+    assert developer.has_permission?(:edit_issues)
+    refute developer.has_permission?(:delete_issues)
+    assert_equal 'default', developer.issues_visibility
+    assert_equal 'own', developer.time_entries_visibility
+
+    assert User.find(2).admin?, 'jsmith holds admin.access'
+    refute User.find(3).admin?
+    assert User.find(1).admin?, 'the built-in admin account is left alone'
+
+    assert_equal [role_named('Administrator').id], Member.find_by(project_id: 1, user_id: 2).role_ids
+    assert_equal [developer.id], Member.find_by(project_id: 1, user_id: 3).role_ids
+    assert_equal [role_named('Viewer').id], Member.find_by(project_id: 1, user_id: 5).role_ids, 'default role'
+
+    assert_empty Role.non_member.permissions
+    assert_empty Role.anonymous.permissions
+    assert_equal({ 'attachmentId' => 7 }, Store.read['company_icon'])
+  end
+
+  def test_import_twice_needs_force
+    import!
+    post '/sprintly/import.json', params: { import: import_config }.to_json, headers: json_headers('admin')
+    assert_response :conflict
+  end
+
+  def test_import_is_admin_only
+    User.find(2).update_column(:admin, true)
+    post '/sprintly/import.json', params: { import: import_config }.to_json, headers: json_headers('dlopper')
+    assert_response :forbidden
+  end
+
+  def test_me_after_import
+    import!
+    payload = me('dlopper')
+    assert payload['initialized']
+    refute payload['admin']
+    assert_equal [role_named('Developer').id], payload['global']['role_ids']
+    assert_equal DEV.sort, payload['global']['permissions'].sort
+    assert_includes payload['projects']['1']['permissions'], 'issues.edit'
+  end
+
+  # ---- server-side enforcement -------------------------------------------------------
+
+  def test_status_follows_change_status_without_any_workflow
+    import!
+    tester = save_role('Tester', DEV)
+    WorkflowTransition.where(role_id: tester.id).delete_all
+    override(1, 3, tester)
+
+    put '/issues/1.json', params: { issue: { status_id: 2 } }.to_json, headers: json_headers('dlopper')
+    assert_response :no_content
+    assert_equal 2, Issue.find(1).status_id
+
+    save_role('Tester', DEV - ['issues.change_status'])
+    put '/issues/1.json', params: { issue: { status_id: 1, subject: 'Still editable' } }.to_json, headers: json_headers('dlopper')
+    assert_response :no_content
+    assert_equal 2, Issue.find(1).status_id, 'status stays'
+    assert_equal 'Still editable', Issue.find(1).subject
+  end
+
+  def test_assignee_priority_and_sprint_need_their_permissions
+    import!
+    before = Issue.find(1)
+    put '/issues/1.json', params: { issue: { assigned_to_id: 2, priority_id: 6, fixed_version_id: 3, subject: 'Edited' } }.to_json,
+                          headers: json_headers('dlopper')
+    assert_response :no_content
+    issue = Issue.find(1)
+    assert_equal before.assigned_to_id, issue.assigned_to_id
+    assert_equal before.priority_id, issue.priority_id
+    assert_equal before.fixed_version_id, issue.fixed_version_id
+    assert_equal 'Edited', issue.subject
+
+    save_role('Developer', DEV + %w[issues.assign issues.change_priority])
+    put '/issues/1.json', params: { issue: { assigned_to_id: 2, priority_id: 6 } }.to_json, headers: json_headers('dlopper')
+    assert_equal 2, Issue.find(1).assigned_to_id
+    assert_equal 6, Issue.find(1).priority_id
+  end
+
+  def test_watching_yourself_is_free_watching_others_needs_assign
+    import!
+    post '/issues/2/watchers.json', params: { user_id: 3 }.to_json, headers: json_headers('dlopper')
+    assert_response :no_content
+    post '/issues/2/watchers.json', params: { user_id: 2 }.to_json, headers: json_headers('dlopper')
+    assert_response :forbidden
+  end
+
+  def test_sprint_actions
+    import!
+    save_role('Developer', DEV + ['sprints.edit'])
+    post '/projects/1/versions.json', params: { version: { name: 'Sprint X' } }.to_json, headers: json_headers('dlopper')
+    assert_response :forbidden
+    put '/versions/2.json', params: { version: { description: 'renamed' } }.to_json, headers: json_headers('dlopper')
+    assert_response :no_content
+    delete '/versions/3.json', headers: auth('dlopper')
+    assert_response :forbidden
+
+    save_role('Developer', DEV + %w[sprints.create])
+    post '/projects/1/versions.json', params: { version: { name: 'Sprint X' } }.to_json, headers: json_headers('dlopper')
+    assert_response :created
+  end
+
+  def test_wiki_create_and_edit_are_separate
+    import!
+    put '/projects/ecookbook/wiki/Another_page.json',
+        params: { wiki_page: { text: 'changed' } }.to_json, headers: json_headers('dlopper')
+    assert_response :no_content
+    put '/projects/ecookbook/wiki/Brand_new.json', params: { wiki_page: { text: 'new' } }.to_json, headers: json_headers('dlopper')
+    assert_response :forbidden
+
+    save_role('Developer', DEV + ['wiki.create'])
+    put '/projects/ecookbook/wiki/Brand_new.json', params: { wiki_page: { text: 'new' } }.to_json, headers: json_headers('dlopper')
+    assert_response :created
+  end
+
+  def test_time_entries_edit_own_and_delete
+    import!
+    post '/time_entries.json', params: { time_entry: { issue_id: 1, hours: 1.5, activity_id: 9 } }.to_json,
+                               headers: json_headers('dlopper')
+    assert_response :created
+    entry_id = JSON.parse(response.body)['time_entry']['id']
+
+    put "/time_entries/#{entry_id}.json", params: { time_entry: { hours: 2 } }.to_json, headers: json_headers('dlopper')
+    assert_response :no_content
+    delete "/time_entries/#{entry_id}.json", headers: auth('dlopper')
+    assert_response :forbidden
+
+    save_role('Developer', DEV + ['time.delete'])
+    delete "/time_entries/#{entry_id}.json", headers: auth('dlopper')
+    assert_response :no_content
+  end
+
+  def test_creating_projects_is_a_global_permission
+    import!
+    creator = save_role('Creator', DEV + ['projects.create'])
+    override(1, 3, creator)
+    body = { project: { name: 'Mine', identifier: 'mine-project' } }.to_json
+    post '/projects.json', params: body, headers: json_headers('dlopper')
+    assert_response :forbidden, 'a project role does not lend a global permission'
+
+    put '/sprintly/assignments.json', params: { assignments: { users: { '3' => [creator.id] } } }.to_json,
+                                      headers: json_headers('jsmith')
+    assert_response :success
+    post '/projects.json', params: body, headers: json_headers('dlopper')
+    assert_response :created
+  end
+
+  # ---- assignments -----------------------------------------------------------------------
+
+  def test_the_last_administrator_cannot_be_removed
+    import!
+    put '/sprintly/assignments.json', params: { assignments: { users: { '2' => [] } } }.to_json, headers: json_headers('jsmith')
+    assert_response :unprocessable_entity
+    assert User.find(2).admin?
+    assert_equal [role_named('Administrator').id], Store.read['users']['2']
+  end
+
+  def test_global_role_change_moves_admin_flag_and_memberships
+    import!
+    admin_role = role_named('Administrator')
+    put '/sprintly/assignments.json', params: { assignments: { users: { '3' => [admin_role.id] } } }.to_json,
+                                      headers: json_headers('jsmith')
+    assert_response :success
+    assert User.find(3).admin?
+    assert_equal [admin_role.id], Member.find_by(project_id: 1, user_id: 3).role_ids
+  end
+
+  def test_project_override_replaces_the_global_role_there_only
+    import!
+    viewer = role_named('Viewer')
+    override(1, 3, viewer)
+    assert_equal [viewer.id], Member.find_by(project_id: 1, user_id: 3).role_ids
+    assert_equal({ '3' => [viewer.id] }, Store.read['projects']['1']['users'])
+
+    get '/sprintly/projects/1/assignments.json', headers: auth('dlopper')
+    assert_response :success, 'members may read their project assignments'
+    put '/sprintly/projects/1/assignments.json', params: { assignments: { users: { '3' => [] } } }.to_json,
+                                                 headers: json_headers('dlopper')
+    assert_response :forbidden
+  end
+
+  def test_a_new_member_gets_the_role_model_role
+    import!
+    post '/projects/1/memberships.json', params: { membership: { user_id: 4, role_ids: [role_named('Administrator').id] } }.to_json,
+                                         headers: json_headers('jsmith')
+    assert_response :created
+    assert_equal [role_named('Viewer').id], Member.find_by(project_id: 1, user_id: 4).role_ids
+  end
+
+  def test_joining_a_group_brings_its_global_role
+    import!
+    put '/sprintly/assignments.json', params: { assignments: { groups: { '10' => [role_named('Administrator').id] } } }.to_json,
+                                      headers: json_headers('jsmith')
+    assert_response :success
+    refute User.find(4).admin?
+    post '/groups/10/users.json', params: { user_id: 4 }.to_json, headers: json_headers('jsmith')
+    assert_response :no_content
+    assert User.find(4).admin?
+  end
+
+  def test_deleting_a_role_reassigns_its_holders
+    import!
+    tester = save_role('Tester', DEV)
+    override(1, 3, tester)
+    delete "/sprintly/roles/#{tester.id}.json", headers: auth('jsmith')
+    assert_response :no_content
+    assert_nil Role.find_by(id: tester.id)
+    assert_equal [role_named('Developer').id], Member.find_by(project_id: 1, user_id: 3).role_ids
+  end
+
+  def test_role_writes_are_admin_only
+    import!
+    post '/sprintly/roles.json', params: { role: { name: 'Nope', permissions: [] } }.to_json, headers: json_headers('dlopper')
+    assert_response :forbidden
+  end
+
+  # ---- reads for everybody --------------------------------------------------------------
+
+  def test_principals_for_a_non_admin
+    import!
+    UserCustomField.create!(name: 'App data', field_format: 'text', visible: true)
+    get '/sprintly/principals.json', headers: auth('dlopper')
+    assert_response :success
+    body = JSON.parse(response.body)
+    jsmith = body['users'].detect { |u| u['login'] == 'jsmith' }
+    assert jsmith
+    assert_empty jsmith['custom_fields'].reject { |cf| cf['name'] == 'Avatar' }
+    refute jsmith.key?('group_ids')
+    refute body['users'].any? { |u| u['status'] != User::STATUS_ACTIVE }
+    assert body['groups'].any?
+  end
+
+  def test_custom_fields_for_a_non_admin
+    import!
+    hidden = IssueCustomField.create!(name: 'Hidden', field_format: 'string', visible: false, is_for_all: true, role_ids: [1])
+    get '/sprintly/custom_fields.json', headers: auth('dlopper')
+    assert_response :success
+    names = JSON.parse(response.body)['custom_fields'].map { |f| f['name'] }
+    refute_includes names, hidden.name
+    get '/sprintly/custom_fields.json', headers: auth('jsmith')
+    field = JSON.parse(response.body)['custom_fields'].detect { |f| f['name'] == hidden.name }
+    assert_equal true, field['is_for_all']
+  end
+
+  def test_app_config_strips_the_old_role_config
+    Setting.welcome_text = "Hello\n<!--SPRINTLY_CONFIG:{\"roles\":[],\"companyIcon\":{\"x\":1}}-->"
+    get '/sprintly/app_config.json', headers: auth('dlopper')
+    assert_response :success
+    settings = JSON.parse(response.body)['settings']
+    assert_equal 'Hello', settings['welcome_text']
+    assert_equal({ 'x' => 1 }, settings['company_icon'])
+    refute settings.key?('mail_from')
+  end
+
+  def test_reachable_through_the_extended_api_prefix
+    get '/extended_api/sprintly/roles.json', headers: auth('dlopper')
+    assert_response :success
+  end
+end
