@@ -23,6 +23,7 @@ require_relative 'lib/redmine_extended_api/sprintly/store'
 require_relative 'lib/redmine_extended_api/sprintly/access'
 require_relative 'lib/redmine_extended_api/sprintly/model_patches'
 require_relative 'lib/redmine_extended_api/sprintly/controller_patches'
+require_relative 'lib/redmine_extended_api/sprintly/wiki_social'
 
 Redmine::Plugin.register :redmine_extended_api do
   name 'Redmine Extended API'

@@ -31,5 +31,12 @@ Rails.application.routes.draw do
     get    'app_config(.:format)', action: 'app_config'
   end
 
+  # SPR-523: watchers of a wiki page, which is named by `title` (a parameter).
+  scope 'sprintly/projects/:project_id/wiki', controller: 'sprintly_wiki_watchers' do
+    get    'watchers(.:format)', action: 'index'
+    post   'watchers(.:format)', action: 'create'
+    delete 'watchers(.:format)', action: 'destroy'
+  end
+
   mount RedmineExtendedApi.proxy_app => RedmineExtendedApi::API_PREFIX
 end

@@ -86,3 +86,5 @@ en:
   permission_sprintly__gists__create: "Sprintly: gists.create"
   permission_sprintly__gists__edit: "Sprintly: gists.edit"
   permission_sprintly__gists__delete: "Sprintly: gists.delete"
+  # SPR-523: adding a watcher to a wiki page.
+  error_sprintly_wiki_watcher_cannot_view: "This user cannot view the wiki page"
