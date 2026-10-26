@@ -30,7 +30,7 @@ module RedmineExtendedApi
         reports.project.created_resolved reports.project.age reports.project.pie reports.project.resolution
         reports.agile.burndown reports.agile.burnup reports.agile.sprint_report reports.agile.velocity
         reports.agile.cfd reports.agile.control reports.agile.version
-        wiki.view wiki.create wiki.edit wiki.delete
+        wiki.view wiki.create wiki.edit wiki.delete wiki.protect
         time.view time.view_others time.log time.edit time.edit_own time.delete
         projects.view projects.create projects.edit projects.manage_members projects.manage_versions
         admin.access admin.settings admin.users admin.groups admin.roles admin.trackers
@@ -76,6 +76,8 @@ module RedmineExtendedApi
         'wiki.create' => %i[edit_wiki_pages],
         'wiki.edit' => %i[edit_wiki_pages rename_wiki_pages],
         'wiki.delete' => %i[delete_wiki_pages delete_wiki_pages_attachments],
+        # SPR-522: locking a page; a locked page is then editable only with this right.
+        'wiki.protect' => %i[protect_wiki_pages],
         'time.view' => %i[view_time_entries],
         'time.log' => %i[log_time],
         'time.edit' => %i[edit_time_entries],

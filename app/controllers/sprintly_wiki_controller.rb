@@ -3,20 +3,24 @@
 # SPR-521: a wiki page's history, the comparison of two versions and "who wrote which block",
 # as JSON. Core Redmine has them only as HTML pages (wiki#history, #diff, #annotate) and the
 # SPA otherwise reads every version with its full text to build a history list.
+# SPR-522: the page's protection ("Lock"), which core keeps out of the REST API too.
 #
 # Reached as /sprintly/projects/:project_id/wiki/:id/... and, through the proxy, as
 # /extended_api/sprintly/projects/:project_id/wiki/:id/... . Same right as core's pages:
-# `view_wiki_edits` (in the Sprintly role model it comes with `wiki.view`).
+# `view_wiki_edits` (in the Sprintly role model it comes with `wiki.view`); reading the lock
+# takes `view_wiki_pages`, setting it `protect_wiki_pages` (`wiki.protect`).
 class SprintlyWikiController < ApplicationController
   WikiBlocks = RedmineExtendedApi::Sprintly::WikiBlocks
 
   HISTORY_LIMIT = 25
   HISTORY_MAX_LIMIT = 100
 
-  accept_api_auth :history, :diff, :annotate
+  accept_api_auth :history, :diff, :annotate, :protection, :protect
 
   before_action :find_wiki_page
-  before_action :authorize_wiki_edits
+  before_action :authorize_wiki_edits, only: %i[history diff annotate]
+  before_action :authorize_wiki_view, only: :protection
+  before_action :authorize_protect, only: :protect
 
   # The versions of the page, newest first, without their text.
   def history
@@ -76,7 +80,47 @@ class SprintlyWikiController < ApplicationController
     }
   end
 
+  # SPR-522: whether the page is locked, and what the signed-in user may do about it. A locked
+  # page can be edited, renamed or deleted only by who may lock pages (core enforces it).
+  def protection
+    render json: { wiki_page: protection_payload }
+  end
+
+  def protect
+    raw = params[:wiki_page].is_a?(ActionController::Parameters) ? params[:wiki_page][:protected] : params[:protected]
+    return render_error_json('protected must be true or false', :unprocessable_entity) if raw.nil?
+
+    @page.update_attribute(:protected, ActiveModel::Type::Boolean.new.cast(raw) ? true : false)
+    render json: { wiki_page: protection_payload }
+  end
+
   private
+
+  def protection_payload
+    user = User.current
+    {
+      title: @page.title,
+      protected: @page.protected?,
+      can_protect: user.allowed_to?(:protect_wiki_pages, @project),
+      editable: @page.editable_by?(user) && user.allowed_to?(:edit_wiki_pages, @project)
+    }
+  end
+
+  def authorize_wiki_view
+    return true if User.current.allowed_to?(:view_wiki_pages, @project)
+
+    deny_access
+  end
+
+  def authorize_protect
+    return true if User.current.allowed_to?(:protect_wiki_pages, @project)
+
+    deny_access
+  end
+
+  def render_error_json(message, status)
+    render json: { errors: [message] }, status: status
+  end
 
   def find_wiki_page
     @project = Project.find(params[:project_id])
