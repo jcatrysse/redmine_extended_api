@@ -1,0 +1,7 @@
+<%= l(@mentioned ? :mail_body_sprintly_wiki_comment_mentioned : :mail_body_sprintly_wiki_comment_added,
+      id: @page_title, author: @comment.author) %>
+
+<%= strip_tags(@comment.content.gsub(%r{</(p|li|h\d|pre|blockquote|tr)>|<br\s*/?>}i, "\n")).squeeze("\n").strip %>
+
+<%= @page_title %>:
+<%= @page_url %>

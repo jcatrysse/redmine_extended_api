@@ -38,5 +38,13 @@ Rails.application.routes.draw do
     delete 'watchers(.:format)', action: 'destroy'
   end
 
+  # SPR-529: comments of a wiki page.
+  scope 'sprintly/projects/:project_id/wiki', controller: 'sprintly_wiki_comments' do
+    get    'comments(.:format)', action: 'index'
+    post   'comments(.:format)', action: 'create'
+    put    'comments/:id(.:format)', action: 'update', constraints: { id: /\d+/ }
+    delete 'comments/:id(.:format)', action: 'destroy', constraints: { id: /\d+/ }
+  end
+
   mount RedmineExtendedApi.proxy_app => RedmineExtendedApi::API_PREFIX
 end

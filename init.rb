@@ -73,3 +73,9 @@ WikiController.prepend RedmineExtendedApi::Sprintly::ControllerPatches::WikiCont
 TimelogController.prepend RedmineExtendedApi::Sprintly::ControllerPatches::TimelogControllerPatch
 AttachmentsController.prepend RedmineExtendedApi::Sprintly::ControllerPatches::AttachmentsControllerPatch
 FilesController.prepend RedmineExtendedApi::Sprintly::ControllerPatches::FilesControllerPatch
+
+# SPR-529: comments under wiki pages (SprintlyWikiCommentsController) and SPA mentions in them
+# and in the pages themselves.
+WikiPage.include RedmineExtendedApi::Sprintly::WikiSocial::WikiPagePatch
+WikiContent.prepend RedmineExtendedApi::Sprintly::WikiSocial::MentionScan
+User.include RedmineExtendedApi::Sprintly::WikiSocial::UserPatch

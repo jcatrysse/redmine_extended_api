@@ -29,6 +29,62 @@ module RedmineExtendedApi
           render_403 unless @page.visible?
         end
       end
+
+      # The SPA's editor writes a mention as `<span data-type="mention" data-id="5">@Jane Doe</span>`:
+      # the label is the display name, so Redmine's own `@login` scan finds nobody. Mentionable
+      # models get the logins of those ids too, which makes core's mention mail (wiki content)
+      # and ours (comments) reach the people mentioned in the SPA. Only newly mentioned people
+      # count — Mentionable compares the old and new text.
+      module Mentions
+        module_function
+
+        def user_ids_in(html)
+          return [] if html.blank? || !html.include?('mention')
+
+          Nokogiri::HTML::DocumentFragment.parse(html)
+                                          .css('[data-type="mention"][data-id]')
+                                          .map { |node| node['data-id'].to_i }
+                                          .select(&:positive?)
+                                          .uniq
+        end
+
+        def logins_in(html)
+          ids = user_ids_in(html)
+          ids.empty? ? [] : User.where(id: ids).pluck(:login)
+        end
+      end
+
+      # Prepended to WikiContent; included in SprintlyWikiComment after `acts_as_mentionable`.
+      module MentionScan
+        private
+
+        def scan_for_mentioned_users(content)
+          (super + Mentions.logins_in(content)).uniq
+        end
+      end
+
+      # A page's comments go with it.
+      module WikiPagePatch
+        def self.included(base)
+          base.has_many :sprintly_wiki_comments, class_name: 'SprintlyWikiComment', foreign_key: :page_id,
+                                                 dependent: :delete_all, inverse_of: :page
+        end
+      end
+
+      # Like core does for journals and news comments: what a deleted user wrote stays, signed
+      # by the anonymous user.
+      module UserPatch
+        def self.included(base)
+          base.before_destroy :sprintly_reassign_wiki_comments
+        end
+
+        private
+
+        def sprintly_reassign_wiki_comments
+          SprintlyWikiComment.where(author_id: id).update_all(author_id: User.anonymous.id)
+          nil
+        end
+      end
     end
   end
 end

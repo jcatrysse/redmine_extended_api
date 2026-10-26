@@ -88,3 +88,7 @@ en:
   permission_sprintly__gists__delete: "Sprintly: gists.delete"
   # SPR-523: adding a watcher to a wiki page.
   error_sprintly_wiki_watcher_cannot_view: "This user cannot view the wiki page"
+  # SPR-529: mail about a comment on a wiki page.
+  mail_subject_sprintly_wiki_comment_added: "New comment on the '%{id}' wiki page"
+  mail_body_sprintly_wiki_comment_added: "%{author} commented on the '%{id}' wiki page."
+  mail_body_sprintly_wiki_comment_mentioned: "%{author} mentioned you in a comment on the '%{id}' wiki page."

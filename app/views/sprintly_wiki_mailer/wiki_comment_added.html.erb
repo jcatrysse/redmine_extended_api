@@ -1,0 +1,3 @@
+<p><%= l(@mentioned ? :mail_body_sprintly_wiki_comment_mentioned : :mail_body_sprintly_wiki_comment_added,
+         id: link_to(@page_title, @page_url), author: h(@comment.author)).html_safe %></p>
+<div><%= sanitize(@comment.content, tags: SprintlyWikiComment::ALLOWED_TAGS, attributes: %w[href class colspan rowspan]) %></div>
