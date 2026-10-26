@@ -207,6 +207,48 @@ class SprintlyAccessTest < Redmine::ApiTest::Base
     refute_equal 6, created.priority_id, 'but not priority without its own permission'
   end
 
+  # SPR-512: a Developer (issues.edit, no admin rights) sets every kind of issue custom field
+  # the tracker uses — on an existing issue and on a new one. The definitions themselves stay
+  # an administrator's: reading one through the admin endpoint is refused, which is why the
+  # SPA resolves picked options from /sprintly/custom_fields instead.
+  def test_a_developer_sets_every_kind_of_custom_field
+    import!
+    scope = { is_for_all: false, project_ids: [1], tracker_ids: [1], visible: true }
+    release = IssueCustomField.create!(scope.merge(name: 'Release Version', field_format: 'enumeration'))
+    release.enumerations.create!(name: '0.0.15', position: 1)
+    release.enumerations.create!(name: '0.0.29', position: 2)
+    component = IssueCustomField.create!(scope.merge(name: 'Service/Component', field_format: 'list', multiple: true,
+                                                     possible_values: %w[Tracker-UI cli]))
+    commit = IssueCustomField.create!(scope.merge(name: 'Commit', field_format: 'bool'))
+    shipped = IssueCustomField.create!(scope.merge(name: 'Release (version)', field_format: 'version'))
+    option = release.enumerations.find_by!(name: '0.0.29')
+    values = [
+      { id: release.id, value: option.id.to_s },
+      { id: component.id, value: %w[Tracker-UI cli] },
+      { id: commit.id, value: '1' },
+      { id: shipped.id, value: '3' }
+    ]
+    expected = {
+      release.id => option.id.to_s, component.id => %w[Tracker-UI cli], commit.id => '1', shipped.id => '3'
+    }
+    read = ->(issue) { expected.keys.to_h { |id| [id, issue.reload.custom_field_value(CustomField.find(id))] } }
+
+    put '/issues/1.json', params: { issue: { custom_fields: values } }.to_json, headers: json_headers('dlopper')
+    assert_response :no_content
+    assert_equal expected, read.call(Issue.find(1))
+
+    post '/projects/1/issues.json', params: { issue: { tracker_id: 1, subject: 'With fields', custom_fields: values } }.to_json,
+                                    headers: json_headers('dlopper')
+    assert_response :created
+    assert_equal expected, read.call(Issue.find(JSON.parse(response.body)['issue']['id']))
+
+    get "/custom_fields/#{release.id}.json", headers: auth('dlopper')
+    assert_response :forbidden
+    get '/sprintly/custom_fields.json', headers: auth('dlopper')
+    listed = JSON.parse(response.body)['custom_fields'].detect { |f| f['id'] == release.id }
+    assert_includes listed['enumerations'].map { |e| e['id'] }, option.id, 'the options come with the readable list'
+  end
+
   def test_watching_yourself_is_free_watching_others_needs_assign
     import!
     post '/issues/2/watchers.json', params: { user_id: 3 }.to_json, headers: json_headers('dlopper')
