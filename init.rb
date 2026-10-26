@@ -17,6 +17,7 @@ require_relative 'lib/redmine_extended_api/patches/roles_controller_patch'
 require_relative 'lib/redmine_extended_api/patches/settings_controller_patch'
 require_relative 'lib/redmine_extended_api/patches/trackers_controller_patch'
 require_relative 'lib/redmine_extended_api/patches/webhook_patch'
+require_relative 'lib/redmine_extended_api/patches/wiki_page_labels_patch'
 require_relative 'lib/redmine_extended_api/proxy_app'
 require_relative 'lib/redmine_extended_api/sprintly/permissions'
 require_relative 'lib/redmine_extended_api/sprintly/store'
@@ -79,3 +80,6 @@ FilesController.prepend RedmineExtendedApi::Sprintly::ControllerPatches::FilesCo
 WikiPage.include RedmineExtendedApi::Sprintly::WikiSocial::WikiPagePatch
 WikiContent.prepend RedmineExtendedApi::Sprintly::WikiSocial::MentionScan
 User.include RedmineExtendedApi::Sprintly::WikiSocial::UserPatch
+
+# SPR-530: labels of wiki pages (SprintlyWikiPageLabel) are deleted with their page.
+WikiPage.include RedmineExtendedApi::Patches::WikiPageLabelsPatch

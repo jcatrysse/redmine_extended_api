@@ -46,9 +46,11 @@ Rails.application.routes.draw do
     delete 'comments/:id(.:format)', action: 'destroy', constraints: { id: /\d+/ }
   end
 
-  # SPR-524: wiki backlinks (links lane). Also reachable as /extended_api/sprintly/... .
+  # SPR-524 / SPR-530: wiki backlinks and labels (links lane). Also reachable as /extended_api/sprintly/... .
   scope 'sprintly/projects/:project_id/wiki' do
     get 'backlinks(.:format)', to: 'sprintly_wiki_links#backlinks', as: nil
+    get 'labels(.:format)', to: 'sprintly_wiki_labels#index', as: nil
+    put 'labels(.:format)', to: 'sprintly_wiki_labels#update', as: nil
   end
 
   mount RedmineExtendedApi.proxy_app => RedmineExtendedApi::API_PREFIX
