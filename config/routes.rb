@@ -53,5 +53,12 @@ Rails.application.routes.draw do
     put 'labels(.:format)', to: 'sprintly_wiki_labels#update', as: nil
   end
 
+  # SPR-521: a wiki page's history, diff and annotate as JSON. Also under /extended_api/... .
+  scope 'sprintly/projects/:project_id/wiki/:id', controller: 'sprintly_wiki' do
+    get 'history(.:format)', action: 'history'
+    get 'diff(.:format)', action: 'diff'
+    get 'annotate(.:format)', action: 'annotate'
+  end
+
   mount RedmineExtendedApi.proxy_app => RedmineExtendedApi::API_PREFIX
 end
