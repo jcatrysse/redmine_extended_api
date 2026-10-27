@@ -27,7 +27,6 @@ require_relative 'lib/redmine_extended_api/sprintly/model_patches'
 require_relative 'lib/redmine_extended_api/sprintly/controller_patches'
 require_relative 'lib/redmine_extended_api/sprintly/wiki_social'
 require_relative 'lib/redmine_extended_api/sprintly/wiki_blocks'
-require_relative 'lib/redmine_extended_api/sprintly/wiki_labels'
 
 Redmine::Plugin.register :redmine_extended_api do
   name 'Redmine Extended API'
@@ -38,8 +37,7 @@ Redmine::Plugin.register :redmine_extended_api do
   requires_redmine version_or_higher: '5.1'
 
   # SPR-383: storage of the Sprintly role model (see Sprintly::Store). No settings page.
-  # SPR-530: labels of wiki pages (see Sprintly::WikiLabels).
-  settings default: { 'sprintly_access' => '', 'sprintly_wiki_labels' => '' }
+  settings default: { 'sprintly_access' => '' }
 
   # SPR-383: every SPA permission is a Redmine permission, so roles store them and
   # `allowed_to?` answers for them (see Sprintly::Permissions).
@@ -84,7 +82,7 @@ FilesController.prepend RedmineExtendedApi::Sprintly::ControllerPatches::FilesCo
 WikiPage.include RedmineExtendedApi::Sprintly::WikiSocial::WikiPagePatch
 WikiContent.prepend RedmineExtendedApi::Sprintly::WikiSocial::MentionScan
 
-# SPR-530: labels of wiki pages (Sprintly::WikiLabels) are deleted with their page.
+# SPR-530: labels of wiki pages (SprintlyWikiPageLabel) are deleted with their page.
 WikiPage.include RedmineExtendedApi::Patches::WikiPageLabelsPatch
 
 # SPR-525: notify=false for wiki writes through /extended_api (bulk import)

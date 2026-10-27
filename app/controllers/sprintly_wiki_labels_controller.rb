@@ -14,14 +14,12 @@
 class SprintlyWikiLabelsController < ApplicationController
   include RedmineExtendedApi::Sprintly::ControllerPatches::Guard
 
-  Labels = RedmineExtendedApi::Sprintly::WikiLabels
-
   accept_api_auth :index, :update
 
   before_action :find_project_wiki
 
   def index
-    render json: { labels: Labels.by_page_title(@wiki).map { |title, names| { title: title, labels: names } } }
+    render json: { labels: SprintlyWikiPageLabel.by_page_title(@wiki).map { |title, names| { title: title, labels: names } } }
   end
 
   def update
@@ -30,12 +28,16 @@ class SprintlyWikiLabelsController < ApplicationController
     return deny_access unless may_label?(page)
     return render_error_json('labels missing') unless params.key?(:labels)
 
-    names = Array(params[:labels]).map { |name| Labels.normalize(name) }.reject(&:empty?).uniq
-    too_long = names.select { |name| name.length > Labels::MAX_LENGTH }
-    return render_error_json("labels longer than #{Labels::MAX_LENGTH} characters: #{too_long.join(', ')}") if too_long.any?
-    return render_error_json("at most #{Labels::MAX_PER_PAGE} labels per page") if names.size > Labels::MAX_PER_PAGE
+    names = Array(params[:labels]).map { |name| SprintlyWikiPageLabel.normalize(name) }.reject(&:empty?).uniq
+    too_long = names.select { |name| name.length > SprintlyWikiPageLabel::MAX_LENGTH }
+    return render_error_json("labels longer than #{SprintlyWikiPageLabel::MAX_LENGTH} characters: #{too_long.join(', ')}") if too_long.any?
+    return render_error_json("at most #{SprintlyWikiPageLabel::MAX_PER_PAGE} labels per page") if names.size > SprintlyWikiPageLabel::MAX_PER_PAGE
 
-    render json: { title: page.title, labels: Labels.set!(page, names) }
+    SprintlyWikiPageLabel.transaction do
+      page.sprintly_labels.where.not(name: names).delete_all
+      (names - page.sprintly_labels.pluck(:name)).each { |name| page.sprintly_labels.create!(name: name) }
+    end
+    render json: { title: page.title, labels: page.sprintly_labels.order(:name).pluck(:name) }
   end
 
   private
