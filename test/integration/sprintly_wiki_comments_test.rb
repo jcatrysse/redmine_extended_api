@@ -140,7 +140,7 @@ class SprintlyWikiCommentsTest < Redmine::ApiTest::Base
   end
 
   def test_mentioned_people_are_mailed
-    with_settings notified_events: [] do
+    with_settings notified_events: %w[wiki_comment_added] do
       create_comment('dlopper', "<p>#{mention(User.find(2))} have a look</p>")
     end
     assert_equal ['jsmith@somenet.foo'], recipients
@@ -152,7 +152,7 @@ class SprintlyWikiCommentsTest < Redmine::ApiTest::Base
 
   def test_a_mention_of_someone_who_cannot_read_the_page_is_not_mailed
     page = WikiPage.find(3) # project 2, private: rhill is no member
-    with_settings notified_events: [] do
+    with_settings notified_events: %w[wiki_comment_added] do
       post '/sprintly/projects/onlinestore/wiki/comments.json',
            params: { title: page.title, comment: { content: "<p>#{mention(User.find(4))}</p>" } }.to_json,
            headers: json_headers('jsmith')
@@ -162,9 +162,9 @@ class SprintlyWikiCommentsTest < Redmine::ApiTest::Base
   end
 
   def test_an_edit_mails_only_the_people_mentioned_anew
-    comment = with_settings(notified_events: []) { create_comment('dlopper', "<p>#{mention(User.find(2))}</p>") }
+    comment = with_settings(notified_events: %w[wiki_comment_added]) { create_comment('dlopper', "<p>#{mention(User.find(2))}</p>") }
     ActionMailer::Base.deliveries.clear
-    with_settings notified_events: [] do
+    with_settings notified_events: %w[wiki_comment_added] do
       put "#{URL}/#{comment['id']}.json",
           params: { comment: { content: "<p>#{mention(User.find(2))} and #{mention(User.find(1))}</p>" } }.to_json,
           headers: json_headers('dlopper')
@@ -184,6 +184,33 @@ class SprintlyWikiCommentsTest < Redmine::ApiTest::Base
       create_comment('jsmith', '<p>Nobody hears of their own comment</p>')
     end
     assert_equal ['jsmith@somenet.foo'], recipients
+  end
+
+  # SPR-533: comments obey the tenant's mail settings — their own event, or "wiki page
+  # updated" (its parent); mentions as much as watchers.
+  def test_comments_are_mailed_only_with_their_event_on
+    WikiPage.find(2).add_watcher(User.find(2))
+    with_settings notified_events: %w[issue_added issue_updated issue_note_added wiki_content_added] do
+      create_comment('dlopper', "<p>#{mention(User.find(1))} quiet</p>")
+    end
+    assert_empty recipients, 'neither the watcher nor the mentioned person'
+
+    with_settings notified_events: %w[wiki_comment_added] do
+      create_comment('dlopper', "<p>#{mention(User.find(1))} loud</p>")
+    end
+    assert_equal %w[admin@somenet.foo jsmith@somenet.foo], recipients.sort
+  end
+
+  def test_an_edit_mails_no_new_mention_with_the_event_off
+    comment = with_settings(notified_events: %w[wiki_comment_added]) { create_comment('dlopper', '<p>x</p>') }
+    ActionMailer::Base.deliveries.clear
+    with_settings notified_events: [] do
+      put "#{URL}/#{comment['id']}.json",
+          params: { comment: { content: "<p>#{mention(User.find(2))}</p>" } }.to_json,
+          headers: json_headers('dlopper')
+    end
+    assert_response :success
+    assert_empty recipients
   end
 
   def test_mentions_in_the_page_reach_core_wiki_mail

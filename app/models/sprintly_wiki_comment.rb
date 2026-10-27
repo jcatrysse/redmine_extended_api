@@ -78,20 +78,26 @@ class SprintlyWikiComment < ApplicationRecord
                          RedmineExtendedApi::Sprintly::WikiSocial::Mentions.user_ids_in(content).empty?
   end
 
-  # Mentioned people always hear of it; watchers of the page (or of the whole wiki) do when
-  # the tenant mails wiki changes, like core does for an edit of the page.
+  # SPR-533: the tenant's mail settings decide, as for anything core mails — mentions too
+  # (core mails an issue's mentions only with its event on). Its own event, a child of
+  # "wiki page updated" the way "note added" is of "issue updated": either one turns it on.
+  NOTIFIED_EVENT = 'wiki_comment_added'
+
+  def self.mailed?
+    events = Setting.notified_events
+    events.include?('wiki_content_updated') || events.include?(NOTIFIED_EVENT)
+  end
+
+  # Watchers of the page (or of the whole wiki) and the people it mentions.
   def send_notification_create
-    users = notified_mentions
-    if Setting.notified_events.include?('wiki_content_updated')
-      users |= page.notified_watchers
-      users |= page.wiki.notified_watchers
-    end
-    deliver_to(users)
+    return unless self.class.mailed?
+
+    deliver_to(notified_mentions | page.notified_watchers | page.wiki.notified_watchers)
   end
 
   # An edit tells only the people it mentions anew.
   def send_notification_update
-    deliver_to(notified_mentions) if saved_change_to_content?
+    deliver_to(notified_mentions) if saved_change_to_content? && self.class.mailed?
   end
 
   def deliver_to(users)

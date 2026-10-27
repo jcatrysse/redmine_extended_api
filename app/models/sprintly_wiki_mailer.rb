@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-# SPR-529: mail about a comment on a wiki page — to the people it mentions, and to the page's
-# watchers when the tenant mails wiki changes (see SprintlyWikiComment).
+# SPR-529: mail about a comment on a wiki page — to the people it mentions and to the page's
+# watchers, when the tenant mails wiki comments (SPR-533, see SprintlyWikiComment).
 class SprintlyWikiMailer < Mailer
   # `mentioned`: the mail says "mentioned you" rather than "commented".
   def wiki_comment_added(user, comment, mentioned)
