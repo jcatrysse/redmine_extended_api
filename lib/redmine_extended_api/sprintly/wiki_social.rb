@@ -66,23 +66,8 @@ module RedmineExtendedApi
       # A page's comments go with it.
       module WikiPagePatch
         def self.included(base)
-          base.has_many :sprintly_wiki_comments, class_name: 'SprintlyWikiComment', foreign_key: :page_id,
+          base.has_many :sprintly_wiki_comments, class_name: 'SprintlyWikiComment', foreign_key: :commented_id,
                                                  dependent: :delete_all, inverse_of: :page
-        end
-      end
-
-      # Like core does for journals and news comments: what a deleted user wrote stays, signed
-      # by the anonymous user.
-      module UserPatch
-        def self.included(base)
-          base.before_destroy :sprintly_reassign_wiki_comments
-        end
-
-        private
-
-        def sprintly_reassign_wiki_comments
-          SprintlyWikiComment.where(author_id: id).update_all(author_id: User.anonymous.id)
-          nil
         end
       end
     end

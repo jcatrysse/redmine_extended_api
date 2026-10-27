@@ -213,6 +213,23 @@ class SprintlyWikiCommentsTest < Redmine::ApiTest::Base
     assert_equal 0, SprintlyWikiComment.count
   end
 
+  # Wiki comments share core's `comments` table with news comments (no table of their own:
+  # tenants are not migrated). Neither side sees or touches the other's rows.
+  def test_news_comments_in_the_same_table_are_left_alone
+    news_comments = Comment.where(commented_type: 'News').pluck(:id, :content)
+    assert news_comments.any?, 'fixtures have news comments'
+    comments_count = News.find(1).comments_count
+
+    comment = create_comment('dlopper', '<p>Hello</p>')
+    stored = Comment.unscoped.find(comment['id'])
+    assert_equal ['WikiPage', 2], [stored.commented_type, stored.commented_id]
+    assert_equal [comment['id']], SprintlyWikiComment.pluck(:id)
+
+    WikiPage.find(2).destroy
+    assert_equal news_comments, Comment.where(commented_type: 'News').pluck(:id, :content)
+    assert_equal comments_count, News.find(1).reload.comments_count
+  end
+
   def test_a_deleted_author_becomes_anonymous
     comment = create_comment('rhill', '<p>Left</p>')
     User.find(4).destroy

@@ -5,8 +5,17 @@
 #
 # The text is HTML from the SPA's editor, cleaned on save to the markup that editor writes
 # (mentions, lists, checklists, code, links); the SPA renders it like an issue comment.
+#
+# Stored in core's polymorphic `comments` table (the one news comments use) as
+# commented_type 'WikiPage': tenants start from a prepared database dump and plugin
+# migrations are not run on them, so the plugin only uses tables core has. Not core's
+# Comment class itself: its counter cache would look for `wiki_pages.comments_count` and
+# it mails through events core has no wiki template for.
 class SprintlyWikiComment < ApplicationRecord
   include Redmine::SafeAttributes
+
+  self.table_name = 'comments'
+  default_scope { where(commented_type: 'WikiPage') }
 
   ALLOWED_TAGS = %w[
     p br strong b em i u s strike del code pre blockquote ul ol li a span div label input
@@ -18,7 +27,7 @@ class SprintlyWikiComment < ApplicationRecord
   ].freeze
   MAX_LENGTH = 100_000
 
-  belongs_to :page, class_name: 'WikiPage', inverse_of: :sprintly_wiki_comments
+  belongs_to :page, class_name: 'WikiPage', foreign_key: :commented_id, inverse_of: :sprintly_wiki_comments
   belongs_to :author, class_name: 'User'
 
   acts_as_mentionable attributes: ['content']

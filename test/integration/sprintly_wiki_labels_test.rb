@@ -9,11 +9,14 @@ require File.expand_path('../../../../test/test_helper', __dir__)
 # a Developer of project 1 only.
 class SprintlyWikiLabelsTest < Redmine::ApiTest::Base
   Store = RedmineExtendedApi::Sprintly::Store
+  Labels = RedmineExtendedApi::Sprintly::WikiLabels
   Permissions = RedmineExtendedApi::Sprintly::Permissions
 
   def setup
     super
     Store.clear!
+    # Settings are cached per process and a rolled back test does not tell the cache.
+    Labels.update!(&:clear)
   end
 
   def put_labels(title, labels, project: 'ecookbook', login: 'jsmith', password: nil, prefix: '')
@@ -71,7 +74,27 @@ class SprintlyWikiLabelsTest < Redmine::ApiTest::Base
     assert_equal [{ 'title' => 'Renamed_page', 'labels' => ['keep'] }], json['labels']
 
     page.reload.destroy
-    assert_equal 0, SprintlyWikiPageLabel.where(wiki_page_id: page.id).count
+    refute Labels.read.key?(page.id.to_s)
+  end
+
+  # Tenants start from a prepared dump and plugin migrations are not run on them: the labels
+  # live in the plugin's settings, next to the role model, and neither write drops the other.
+  def test_labels_and_the_role_model_share_the_settings_row
+    put_labels 'Another_page', ['keep']
+    assert_response :success
+    # Any role-model document switches the server to the role model, so the second label is
+    # written directly rather than as jsmith.
+    Store.update! { |data| data['default_role_id'] = 3 }
+    assert_equal ['keep'], Labels.of(WikiPage.find_by!(wiki_id: 1, title: 'Another_page'))
+
+    Labels.set!(WikiPage.find_by!(wiki_id: 1, title: 'Child_1'), ['more'])
+    assert_equal 3, Store.read['default_role_id']
+    assert_equal({ 'Another_page' => ['keep'], 'Child_1' => ['more'] }, Labels.by_page_title(Wiki.find(1)))
+  end
+
+  def test_the_plugin_has_no_migrations
+    root = File.expand_path('../..', __dir__)
+    assert_empty Dir[File.join(root, 'db/migrate/*')], 'tenants are not migrated: use tables core already has'
   end
 
   def test_invalid_input
