@@ -28,6 +28,7 @@ require_relative 'lib/redmine_extended_api/sprintly/controller_patches'
 require_relative 'lib/redmine_extended_api/sprintly/wiki_social'
 require_relative 'lib/redmine_extended_api/sprintly/wiki_blocks'
 require_relative 'lib/redmine_extended_api/sprintly/app_data'
+require_relative 'lib/redmine_extended_api/sprintly/attachment_downloads'
 
 Redmine::Plugin.register :redmine_extended_api do
   name 'Redmine Extended API'
@@ -92,3 +93,7 @@ WikiContent.prepend RedmineExtendedApi::Patches::WikiContentNotificationPatch
 
 # SPR-553: "App data" (the SPA's dashboards and filters) is shown to its owner only.
 User.prepend RedmineExtendedApi::Sprintly::AppData::UserPatch
+
+# SPR-540: SVG/HTML/XML attachments are downloaded as application/octet-stream, so a client that
+# opens the bytes as a same-origin blob: cannot render them as a document.
+AttachmentsController.prepend RedmineExtendedApi::Sprintly::AttachmentDownloads::ControllerPatch
