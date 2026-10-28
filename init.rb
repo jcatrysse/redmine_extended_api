@@ -27,6 +27,7 @@ require_relative 'lib/redmine_extended_api/sprintly/model_patches'
 require_relative 'lib/redmine_extended_api/sprintly/controller_patches'
 require_relative 'lib/redmine_extended_api/sprintly/wiki_social'
 require_relative 'lib/redmine_extended_api/sprintly/wiki_blocks'
+require_relative 'lib/redmine_extended_api/sprintly/app_data'
 
 Redmine::Plugin.register :redmine_extended_api do
   name 'Redmine Extended API'
@@ -88,3 +89,6 @@ WikiPage.include RedmineExtendedApi::Patches::WikiPageLabelsPatch
 # SPR-525: notify=false for wiki writes through /extended_api (bulk import)
 WikiController.prepend RedmineExtendedApi::Patches::WikiControllerPatch
 WikiContent.prepend RedmineExtendedApi::Patches::WikiContentNotificationPatch
+
+# SPR-553: "App data" (the SPA's dashboards and filters) is shown to its owner only.
+User.prepend RedmineExtendedApi::Sprintly::AppData::UserPatch

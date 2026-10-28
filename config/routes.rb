@@ -63,5 +63,11 @@ Rails.application.routes.draw do
     put 'protect(.:format)', action: 'protect'
   end
 
+  # SPR-553: the signed-in user's own "App data". Also reachable as /extended_api/sprintly/... .
+  scope 'sprintly/me', controller: 'sprintly_app_data' do
+    get 'app_data(.:format)', action: 'show'
+    put 'app_data(.:format)', action: 'update'
+  end
+
   mount RedmineExtendedApi.proxy_app => RedmineExtendedApi::API_PREFIX
 end

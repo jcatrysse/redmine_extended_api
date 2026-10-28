@@ -10,7 +10,7 @@ class SprintlyAccessController < ApplicationController
   Permissions = RedmineExtendedApi::Sprintly::Permissions
 
   # The avatar is the one profile field other people need to see. "App data" (personal
-  # dashboards, filters) is a visible field only so `/my/account` returns it to its owner.
+  # dashboards, filters) is its owner's only (SPR-553, SprintlyAppDataController).
   PRINCIPAL_FIELD_NAMES = %w[Avatar].freeze
 
   # Read-only settings any signed-in user may know: how to render dates and names, upload
