@@ -427,6 +427,16 @@ class SprintlyAccessTest < Redmine::ApiTest::Base
     assert body['groups'].any?
   end
 
+  # SPR-558: chat matches people by address, so a hidden one turned names into addresses.
+  def test_principals_carry_the_mail_of_users_who_hide_it
+    import!
+    User.find_by_login('jsmith').pref.update!(hide_mail: true)
+    get '/sprintly/principals.json', headers: auth('dlopper')
+    assert_response :success
+    jsmith = JSON.parse(response.body)['users'].detect { |u| u['login'] == 'jsmith' }
+    assert_equal 'jsmith@somenet.foo', jsmith['mail']
+  end
+
   def test_custom_fields_for_a_non_admin
     import!
     hidden = IssueCustomField.create!(name: 'Hidden', field_format: 'string', visible: false, is_for_all: true, role_ids: [1])

@@ -242,7 +242,10 @@ class SprintlyAccessController < ApplicationController
   def principal_user(user, admin)
     entry = { id: user.id, login: user.login, firstname: user.firstname, lastname: user.lastname,
               name: user.name, status: user.status }
-    entry[:mail] = user.mail if admin || user == User.current || !user.pref.hide_mail
+    # SPR-558: the address goes to every signed-in user, whatever "hide my e-mail" says. Chat
+    # knows people only by it (rooms, authors, mentions), so without it everybody but you is a
+    # bare address there and cannot be written to; chat members already see it anyway.
+    entry[:mail] = user.mail
     entry[:group_ids] = user.group_ids if admin || user == User.current
     entry[:custom_fields] = user.custom_field_values.select { |cv| PRINCIPAL_FIELD_NAMES.include?(cv.custom_field.name) }
                                 .map { |cv| { id: cv.custom_field.id, name: cv.custom_field.name, value: cv.value } }
