@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require File.expand_path('../../../../test/test_helper', __dir__)
+require File.expand_path('../test_helper', __dir__)
 
 # SPR-383: the Sprintly role model end to end, over the REST API, on Redmine's fixtures.
 #

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require File.expand_path('../../../../test/test_helper', __dir__)
+require File.expand_path('../test_helper', __dir__)
 
 # SPR-524: "Linked from" of a wiki page in one request.
 #

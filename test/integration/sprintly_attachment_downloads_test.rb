@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require File.expand_path('../../../../test/test_helper', __dir__)
+require File.expand_path('../test_helper', __dir__)
 
 # SPR-540: attachments a browser would render as a document (SVG, HTML, XML) are downloaded
 # as application/octet-stream; passive types keep their own. The stored file is untouched.

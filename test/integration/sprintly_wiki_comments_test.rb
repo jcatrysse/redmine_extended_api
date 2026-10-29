@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require File.expand_path('../../../../test/test_helper', __dir__)
+require File.expand_path('../test_helper', __dir__)
 
 # SPR-529: comments under a wiki page, and mentions in them and in the page itself.
 #

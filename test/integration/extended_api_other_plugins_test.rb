@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require File.expand_path('../../../../test/test_helper', __dir__)
+require File.expand_path('../test_helper', __dir__)
 
 # Next to other plugins that patch the same core methods. redmine_tags (branch master, the one
 # Redmine 5.1 runs) loads after this plugin and builds an alias_method chain on

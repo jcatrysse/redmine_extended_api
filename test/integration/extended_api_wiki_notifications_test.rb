@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require File.expand_path('../../../../test/test_helper', __dir__)
+require File.expand_path('../test_helper', __dir__)
 
 # SPR-525: a wiki page written through /extended_api with notify=false sends no mail —
 # a bulk import used to mail every member of the project once per page.
