@@ -80,6 +80,16 @@ module RedmineExtendedApi
         global_permissions(user, data).include?(ADMIN_PERMISSION)
       end
 
+      # What the SPA is told the user may do. The admin screens are core Redmine's, and core
+      # checks the `admin` flag, not the role: when the two disagree — the flag taken away by
+      # hand while the global role still holds `admin.access` (SPR-545, demo) — the SPA would
+      # show screens whose every request answers 403. So `admin.*` goes only with the flag.
+      def granted_permissions(user, ids)
+        return ids if user.admin?
+
+        ids.reject { |id| id.start_with?('admin.') }
+      end
+
       # Roles of the user's memberships ∪ global roles — Redmine's "any of your roles" for
       # global checks, widened by the global role (UserPatch).
       def global_roles_for(user, data = Store.read)

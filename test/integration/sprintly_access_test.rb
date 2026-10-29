@@ -148,6 +148,31 @@ class SprintlyAccessTest < Redmine::ApiTest::Base
     assert_includes payload['projects']['1']['permissions'], 'issues.edit'
   end
 
+  # SPR-545: the admin flag taken away by hand (demo) while the global role still says
+  # Administrator. Core answers 403 on every admin screen, so `me` must not offer them.
+  def test_me_without_the_admin_flag_offers_no_admin_screens
+    import!
+    User.find(2).update_column(:admin, false)
+    payload = me('jsmith')
+    refute payload['admin']
+    assert_equal [role_named('Administrator').id], payload['global']['role_ids']
+    assert_empty payload['global']['permissions'].grep(/\Aadmin\./)
+    assert_empty payload['projects']['1']['permissions'].grep(/\Aadmin\./)
+    assert_includes payload['global']['permissions'], 'projects.create'
+    assert_includes payload['projects']['1']['permissions'], 'projects.manage_members'
+
+    get '/groups.json', headers: auth('jsmith')
+    assert_response :forbidden
+  end
+
+  def test_me_of_an_administrator_keeps_the_admin_screens
+    import!
+    payload = me('jsmith')
+    assert payload['admin']
+    assert_includes payload['global']['permissions'], 'admin.access'
+    assert_includes payload['global']['permissions'], 'admin.groups'
+  end
+
   # ---- server-side enforcement -------------------------------------------------------
 
   def test_status_follows_change_status_without_any_workflow

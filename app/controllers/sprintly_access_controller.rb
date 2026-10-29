@@ -47,10 +47,11 @@ class SprintlyAccessController < ApplicationController
     if data
       payload[:default_role_id] = data['default_role_id']
       payload[:global] = { role_ids: Access.global_role_ids(user, data),
-                           permissions: Access.global_permissions(user, data) }
+                           permissions: Access.granted_permissions(user, Access.global_permissions(user, data)) }
       payload[:projects] = Member.where(user_id: user.id).preload(:roles).each_with_object({}) do |member, out|
+        permissions = Access.app_permissions_of_roles(member.roles.to_a)
         out[member.project_id.to_s] = { role_ids: member.roles.map(&:id).uniq,
-                                        permissions: Access.app_permissions_of_roles(member.roles.to_a) }
+                                        permissions: Access.granted_permissions(user, permissions) }
       end
     end
     render json: { me: payload }
