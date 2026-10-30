@@ -23,9 +23,10 @@ module RedmineExtendedApi
       # Refused because it would leave the tenant without a single administrator.
       class LockoutError < Error; end
 
-      # The local account the Redmine image ships with. It is no person, the SPA hides it, and
-      # its admin flag is not the role model's to take away.
-      UNMANAGED_LOGINS = %w[admin].freeze
+      # The local account the tenant seed creates: `admin` on older tenants, `support-…` since
+      # SPR-538. It is no person, the SPA hides it, and its admin flag is not the role model's
+      # to take away.
+      SERVICE_USER_ID = 1
 
       ADMIN_PERMISSION = 'admin.access'
 
@@ -36,11 +37,11 @@ module RedmineExtendedApi
       end
 
       def managed_users
-        User.where(type: 'User').where.not(login: UNMANAGED_LOGINS)
+        User.where(type: 'User').where.not(id: SERVICE_USER_ID)
       end
 
       def managed?(user)
-        user.is_a?(User) && user.logged? && !UNMANAGED_LOGINS.include?(user.login)
+        user.is_a?(User) && user.logged? && user.id != SERVICE_USER_ID
       end
 
       # Assignments may still name a role deleted outside the SPA; those ids are ignored.

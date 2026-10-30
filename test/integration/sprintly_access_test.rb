@@ -91,6 +91,23 @@ class SprintlyAccessTest < Redmine::ApiTest::Base
     refute User.find(2).reload.admin?
   end
 
+  # SPR-572: since SPR-538 the seed account is `support-<hex>`, not `admin`.
+  def test_before_import_the_first_user_becomes_admin_whatever_the_seed_account_is_called
+    User.find(1).update_column(:login, 'support-0123456789')
+    assert me('dlopper')['admin']
+    assert User.find(1).reload.admin?
+  end
+
+  def test_first_user_of_a_fresh_tenant_imports_and_keeps_admin
+    User.find(1).update_column(:login, 'support-0123456789')
+    assert me('dlopper')['admin']
+    post '/sprintly/import.json', params: { import: import_config(users: {}, default_role: 'admin') }.to_json,
+                                  headers: json_headers('dlopper')
+    assert_response :success
+    assert me('dlopper')['admin']
+    assert User.find(1).reload.admin?
+  end
+
   def test_before_import_core_permissions_rule
     User.find(3).update_column(:admin, true) # an administrator exists, no bootstrap
     put '/issues/1.json', params: { issue: { assigned_to_id: 2 } }.to_json, headers: json_headers('dlopper')
