@@ -28,6 +28,15 @@
 * Added admin-only attachment override support (author_id and created_on) when routed through the extended API.
 * Documented the new overrides in the README.
 
+## SPR-383 — Sprintly role model on the server
+
+* Every Sprintly SPA permission is a Redmine permission (`sprintly__<id>`); a role also carries the core permissions it implies, so Redmine enforces it.
+* Role assignments (global per user and group, default role, per-project overrides) are stored in the plugin settings and written into project memberships; the `admin` flag follows the `admin.access` permission.
+* New `/sprintly/...` endpoints (also under `/extended_api`): `me`, `roles`, `assignments`, `projects/:id/assignments`, `import`, `principals`, `custom_fields`, `app_config`.
+* Finer checks than core: status changes without configured workflows, assignee/priority/sprint fields, watching others, sprint create/edit/delete, wiki create vs edit, time entry edit/delete, project creation as a global permission.
+* Inert until a tenant is imported (`POST /sprintly/import`).
+* Gists (project and sprint files): adding needs `gists.create`, renaming `gists.edit`, deleting `gists.delete`; core grants all three with `manage_files`.
+
 ## Redmine 7 migration (branch redmine70-migration)
 
 * Fixed: author_id/created_on/updated_on/closed_on overrides on issue create were silently lost on Rails 7.1+ (Redmine 7): update_columns added the stale lock_version to its WHERE.

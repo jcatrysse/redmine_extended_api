@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require File.expand_path('../../../../test/test_helper', __dir__)
+require File.expand_path('../test_helper', __dir__)
 
 # The admin endpoints against a real Redmine, for the paths the doubles in
 # spec/controller_patches_spec.rb cannot show (model callbacks that raise).

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require File.expand_path('../../../../test/test_helper', __dir__)
+require File.expand_path('../test_helper', __dir__)
 
 # Decision of Jan, 2026-10-07: notify=false on /extended_api silences the Redmine 7
 # webhooks of that request too, not only the mail.

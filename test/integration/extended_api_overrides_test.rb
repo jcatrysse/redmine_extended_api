@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require File.expand_path('../../../../test/test_helper', __dir__)
+require File.expand_path('../test_helper', __dir__)
 
 # Runs against a real Redmine (database, callbacks, optimistic locking), where
 # the specs in spec/ use doubles.

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require File.expand_path('../../../../test/test_helper', __dir__)
+require File.expand_path('../test_helper', __dir__)
 
 # notify=false must silence the request that asks for it, and nothing else:
 # Mailer.with_deliveries(false) switched deliveries off for the whole process,
