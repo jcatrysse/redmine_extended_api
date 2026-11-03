@@ -54,7 +54,15 @@ api.enumeration do
           api.custom_field_value do
             api.id value.custom_field_id if value.respond_to?(:custom_field_id)
             api.name value.custom_field.name if value.custom_field.respond_to?(:name)
-            api.value value.value if value.respond_to?(:value)
+            if value.respond_to?(:value)
+              # a multiple custom field has an Array, which the XML builder wrote as Ruby text;
+              # in XML it is <value type="array"><value>..</value></value>, like core's issues
+              if metadata_inside_root && value.value.is_a?(Array)
+                api.array(:value) { value.value.each { |v| api.value v } }
+              else
+                api.value value.value
+              end
+            end
           end
         end
       end

@@ -37,7 +37,11 @@ a.expect(await a.call('PUT', `/extended_api/issue_statuses/${id}.json`, { as: 'r
 a.expect(await a.call('DELETE', `/extended_api/issue_statuses/${id}.json`, { as: 'outsider' }), 403, 'not admin');
 a.expect(await a.call('GET', `/extended_api/issue_statuses/${id}.json`, { as: null }), 401, 'anonymous');
 a.expect(await a.call('GET', `/issue_statuses/${id}.json`), 404, 'show is extended only');
-await a.show('refused', 'Refusals: blank and duplicate name (422 with errors), unknown id (404), non-admins (403), anonymous (401), core path without show (404)');
+// core's own paths take no API key for writes, as without this plugin
+a.expect(await a.call('POST', '/issue_statuses.json', { data: { issue_status: { name: 'core path' } } }), 403, 'core path create');
+a.expect(await a.call('PUT', `/issue_statuses/${id}.json`, { data: { issue_status: { name: 'core path' } } }), 403, 'core path update');
+a.expect(await a.call('DELETE', `/issue_statuses/${id}.json`), 403, 'core path delete');
+await a.show('refused', 'Refusals: blank and duplicate name (422 with errors), unknown id (404), non-admins (403), anonymous (401), core path without show (404), writes with an API key on the core paths (403)');
 
 a.expect(await a.call('DELETE', `/extended_api/issue_statuses/${id}.json`), 204);
 a.expect(await a.call('GET', `/extended_api/issue_statuses/${id}.json`), 404, 'deleted');

@@ -37,7 +37,11 @@ a.expect(await a.call('GET', '/extended_api/enumerations/999999.json'), 404, 'un
 const normal = (prios.json?.enumerations || []).find(e => e.name === 'Normal');
 const inUse = a.expect(await a.call('DELETE', `/extended_api/enumerations/${normal?.id}.json`), 422, 'priority in use');
 a.check(/Normal/.test(inUse.json?.errors?.[0] || ''), `delete in use: no reason in ${inUse.text}`);
-await a.show('refused', 'Refusals: blank name (422), non-admins (403), unknown id (404), a priority in use without reassign_to_id (422 with the count)');
+// core's own paths take no API key for writes, as without this plugin
+a.expect(await a.call('POST', '/enumerations.json', { data: { enumeration: { type: 'TimeEntryActivity', name: 'core path' } } }), 403, 'core path create');
+a.expect(await a.call('PUT', `/enumerations/${id}.json`, { data: { enumeration: { type: 'TimeEntryActivity', name: 'core path' } } }), 403, 'core path update');
+a.expect(await a.call('DELETE', `/enumerations/${id}.json`), 403, 'core path delete');
+await a.show('refused', 'Refusals: blank name (422), non-admins (403), unknown id (404), a priority in use without reassign_to_id (422 with the count), writes with an API key on the core paths (403)');
 
 // in use, reassigned: log time on the new activity, then delete it onto Design
 const activities = a.expect(await a.call('GET', '/extended_api/enumerations/time_entry_activities.json'), 200).json?.enumerations || [];

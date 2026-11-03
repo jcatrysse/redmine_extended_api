@@ -35,7 +35,11 @@ a.expect(await a.call('DELETE', `/extended_api/roles/${id}.json`, { as: null }),
 a.expect(await a.call('PUT', '/extended_api/roles/999999.json', { data: { role: { name: 'x' } } }), 404, 'unknown id');
 const inUse = a.expect(await a.call('DELETE', '/extended_api/roles/5.json'), 422, 'role in use');
 a.check((inUse.json?.errors?.[0] || '').length > 0, `delete in use: no reason in ${inUse.text}`);
-await a.show('refused', 'Refusals: blank and duplicate name (422), non-admins (403), anonymous (401), unknown id (404), the Reporter role in use (422 with the reason)');
+// core's own paths take no API key for writes, as without this plugin
+a.expect(await a.call('POST', '/roles.json', { data: { role: { name: 'core path' } } }), 403, 'core path create');
+a.expect(await a.call('PUT', `/roles/${id}.json`, { data: { role: { name: 'core path' } } }), 403, 'core path update');
+a.expect(await a.call('DELETE', `/roles/${id}.json`), 403, 'core path delete');
+await a.show('refused', 'Refusals: blank and duplicate name (422), non-admins (403), anonymous (401), unknown id (404), the Reporter role in use (422 with the reason), writes with an API key on the core paths (403)');
 
 a.expect(await a.call('DELETE', `/extended_api/roles/${id}.json`), 204);
 a.expect(await a.call('GET', `/extended_api/roles/${id}.json`), 404, 'deleted');

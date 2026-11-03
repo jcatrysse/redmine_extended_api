@@ -8,9 +8,10 @@ module RedmineExtendedApi
   module Patches
     module EnumerationsControllerPatch
       include ApiHelpers
+      include ExtendedApiAuth
 
       def self.prepended(base)
-        base.accept_api_auth :index, :show, :create, :update, :destroy
+        ExtendedApiAuth.accept(base, :index, :show, :create, :update, :destroy)
         base.helper_method :extended_api_metadata if base.respond_to?(:helper_method)
       end
 

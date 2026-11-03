@@ -33,6 +33,12 @@ inside, because a parent value is often no valid XML name:
 `<value_dependencies type="array"><value_dependency parent="Belgium"><value>12</value><value>14</value></value_dependency></value_dependencies>`
 (and `<default_value_dependencies type="array"><default_value_dependency parent="Belgium"><value>12</value></default_value_dependency>...`;
 a single default and a list of one both read as one `<value>`). Until 2026-11 they were attributes of one element.
+Lists are `type="array"` elements with one child per entry: a custom field's `group_ids`
+(`<group_ids type="array"><group_id>8</group_id><group_id>9</group_id></group_ids>`), a role's
+`permissions_tracker_ids`, which JSON gives as `[["view_issues", ["1", "2"]], ...]`
+(`<permissions_tracker_ids type="array"><permission name="view_issues"><tracker_id>1</tracker_id><tracker_id>2</tracker_id></permission></permissions_tracker_ids>`),
+and the value of a multiple custom field of an enumeration (`<value type="array"><value>a</value><value>c</value></value>`,
+as core writes it for issues). Until 2026-11 these were Ruby text such as `<group_ids>[8, 9]</group_ids>`.
 
 ## Installation
 
@@ -264,6 +270,11 @@ The reference tables below use the following terms:
 
 All paths require either `.json` or `.xml` and the usual authentication headers. The `Core Redmine` column lists the public path when one exists.
 
+The write endpoints (create, update, delete) of issue statuses, trackers, roles, enumerations and custom fields
+take an API key under `/extended_api` only. Core's own paths (`POST /roles.json`, `PUT`/`DELETE /roles/:id.json`,
+and the same for `/trackers`, `/issue_statuses`, `/enumerations`, `/custom_fields`) behave as without this
+plugin: an API key is not accepted there for writes (`403`); the reads core accepts are unchanged.
+
 ### Issue statuses
 
 | Operation           | Method(s) | Extended path                               | Availability        | Notes                                                                                 |
@@ -304,8 +315,6 @@ All paths require either `.json` or `.xml` and the usual authentication headers.
 | Update custom field | PUT/PATCH | `/extended_api/custom_fields/:id.{format}` | Extended only (new) | Supports mass updates of trackers, roles, visibility, and plugin attributes.    |
 | Delete custom field | DELETE    | `/extended_api/custom_fields/:id.{format}` | Extended only (new) | Removes the field; follows the same validations as the UI.                      |
 
-The write endpoints take an API key under `/extended_api` only. Core's own paths (`POST /custom_fields.json`,
-`PUT`/`DELETE /custom_fields/:id.json`) behave as without this plugin: an API key is not accepted there (`403`).
 
 ### Enumerations
 

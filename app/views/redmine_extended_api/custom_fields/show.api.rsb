@@ -200,7 +200,12 @@ api.custom_field do
 
   if policy.display_attribute?(:group_ids)
     ids = Array(@custom_field.try(:group_ids)).reject(&:blank?).map(&:to_i)
-    api.group_ids ids
+    # an Array given to the XML builder was written as Ruby text ("[1, 2]")
+    if metadata_inside_root
+      api.array(:group_ids) { ids.each { |id| api.group_id id } }
+    else
+      api.group_ids ids
+    end
   end
 
   if policy.display_attribute?(:exclude_admins)

@@ -59,6 +59,7 @@ has a test that fails without it. Since 2026-10-13 (decision of Jan) every run i
 | `8d6caab` | No core method is overridden any more: `init_journal` and `send_notification` were still prepended (same loop risk next to a later alias_method chain on 5.1/6.1). notify=false now sets `notify = false` in `before_save` (core's `send_notification` checks `notify?`); journal overrides are set on the new journal in `before_validation`. Journal and attachment overrides only on their own record: the journal the request writes on the issue it updates, the attachment the upload creates (closing an issue gave the journals of its closed duplicates the imported user and date). Tests fail without it. Decided overnight, for Jan to confirm. | coordinator, overnight 2026-10-13 |
 | (this commit) | Finding #25094 (2026-10-22): every .xml answer of the plugin's 7 views (custom field, enumeration, enumeration list, issue status, tracker, role, journal of an issue update) had two top-level elements (`<extended_api>` then the record), so XML parsers refused them (0 of 21 parsed). XML now has one root: `<extended_api>` is the first child of the record's element; the enumeration list carries it as attributes of the array (`extended_api_mode`, `extended_api_fallback_to_native`, left out with `nometa`, like core's `total_count`), because Rails' `Hash.from_xml` takes the first non-string child of a `type="array"` element as its items. JSON byte-identical (Jira migration scripts). README: `copy_workflow_from` and a custom field's `type` at the top level. Test fails without it (3 of 4). | review #25094 |
 | (this commit) | SD-18 to SD-21 of redmine_depending_custom_fields (WP-33 integration run, `docs/specs/large_lists_defects.md` on its branch `claude/festive-noether-2y8x7c`; Jan, 2026-11-03). SD-18: `enumerations` taken by every format built on `Redmine::FieldFormat::EnumerationFormat` (the Key/Value list (depending) answered 201/200 with `[]`); AttributePolicy shows `enumerations` by the same test. SD-19: the root-element half was already fixed by `5e3b3d5`; `value_dependencies`/`default_value_dependencies` were a Hash given to the XML builder (attributes, not well-formed for `a]`, `1`, spaces), now one `<value_dependency parent="...">` element with `<value>` children per parent value; JSON untouched. SD-20: `Array(accept_api_auth_actions)` in ProxyApp, settings.json and admin/projects.json answer the proxy's 404 instead of 500. SD-21: an extended create builds the record with only `field_format` (and `copy`), create then assigns the policy-filtered attributes like update (core assigned the whole request first: `possible_values` on a string field, `dependencies_json` of the depending plugin); core's own `POST/PUT/DELETE /custom_fields(/:id).json` no longer take an API key (`accept_api_auth?` narrowed outside /extended_api; the class list keeps the actions because ProxyApp reads it), 403 like core instead of acting and 200/302/406. 7 new integration tests, 6 fail on the old code with redmine_depending_custom_fields installed (the 7th, create with `copy`, guards the new build), 4 of 5 without it (2 skip); proxy spec fails on the old code (NoMethodError). | Jan, 2026-11-03 |
+| (this commit) | Decision of Jan 2026-11-03 on observations 1 and 2 of the SD work. (1) The accept_api_auth narrowing of SD-21 moved into `ApiHelpers::ExtendedApiAuth` (opt-in: `ExtendedApiAuth.accept(base, ...)` in the prepended hook, `include ExtendedApiAuth`), used by the custom field, role, tracker, issue status and enumeration patches: outside /extended_api the write actions core does not accept take no API key, so core's paths answer 403 like core; the class list still names them for ProxyApp. (2) XML: `group_ids`, a role's `permissions_tracker_ids` and a multiple custom value of an enumeration (show and list) are `type="array"` elements; JSON calls unchanged. 7 new tests, all fail on the old code. | Jan, 2026-11-03 |
 
 ## Work list for the migration session
 
@@ -105,6 +106,19 @@ Actions the person doing the upgrade must take, or know about, for this plugin:
 - REST API stays required (Administration > Settings > **Integrations** on Redmine 7, the tab was "API").
 
 ## Results
+
+Core write paths of roles, trackers, issue statuses, enumerations and XML arrays (decision of Jan, 2026-11-03, PostgreSQL 16.15):
+
+| run | result |
+|---|---|
+| tests before (= c9ed47c, 3221f85 only added a review) | 7.0: minitest 80 runs, 484 assertions, 0 failures, 3 skips; 6.1: 80 runs, 457 assertions, 0 failures, 10 skips; 5.1: 80 runs, 394 assertions, 0 failures, 10 skips; rspec 171 examples, 0 failures on each |
+| tests after, 7.0-stable-GEOxyz 578730a | minitest 87 runs, 544 assertions, 0 failures, 0 errors, 4 skips (3 need redmine_depending_custom_fields); rspec 171 examples, 0 failures |
+| tests after, 7.0 with redmine_depending_custom_fields (redmine70-migration) | minitest 87 runs, 567 assertions, 0 failures, 0 errors, 1 skip; rspec 171 examples, 0 failures |
+| tests after, 6.1-stable e79efdc | minitest 87 runs, 517 assertions, 0 failures, 0 errors, 11 skips; rspec 171 examples, 0 failures |
+| tests after, 5.1-stable 16eb9e6 (Ruby 3.2.6) | minitest 87 runs, 450 assertions, 0 failures, 0 errors, 11 skips; rspec 171 examples, 0 failures |
+| new tests on the old code, 7.0 with the depending plugin | 7 of 7 fail: the 4 core-path tests (200 instead of 403), group_ids, role permissions_tracker_ids and the enumeration multiple value (no `type="array"`, Ruby text) |
+| HTTP probes, 7.0 production mode, one database, three states: no Extended API, old (3221f85), new | admin key on POST, PUT, DELETE of /roles, /trackers, /issue_statuses, /enumerations: core 403 x12, nothing changed; old 200 created, 406 renamed, 302 deleted (x4); new 403 x12, nothing changed, the same as core. GET /roles.json, /trackers.json, /issue_statuses.json, /enumerations/issue_priorities.json, /roles/:id.json 200 in all three. XML (Python ElementTree): role permissions_tracker_ids old Ruby text `[["view_issues", ["1", "2"]], ["add_issues", ["1"]]]`, new `type="array"` with `{"view_issues": ["1","2"], "add_issues": ["1"]}`; group_ids old `[8, 9]`, new array `["8","9"]`; enumeration multiple value old `["a", "c"]` text, new array; all 16 XML answers of the new code parse. JSON: 16 answers (2 custom fields, 8 priorities, the priority list, 5 role update answers) byte-identical old and new. No API key recorded. |
+| e2e 7.0, production mode | smoke + core + 15 scenarios, 0 problems; roles, trackers, issue_statuses and enumerations.mjs check the core-path writes (403); their four `*-refused` screenshots recommitted and looked at |
 
 SD-18 to SD-21 (2026-11-03, PostgreSQL 16.15; redmine_depending_custom_fields `redmine70-migration` ba8f07f and WP-33 branch `claude/festive-noether-2y8x7c` ad5cb64):
 
@@ -305,15 +319,8 @@ unchanged by this work, so recorded, not fixed):
 - Enumeration custom field update keeps options left out of the list (merge, not replace) and can give
   two options the same position.
 - `GET /extended_api/<unknown id>.json` answers 404 without a body, like core.
-- The plugin registers `accept_api_auth` for create/update/destroy on the core admin controllers, so an
-  admin API key can also reach core's HTML-oriented create/update on the core paths (they redirect).
-  Admin only; pre-existing. Fixed for custom fields (SD-21, 2026-11-03); still open for roles, trackers,
-  issue statuses and enumerations: on 7.0 an admin key on `POST /roles.json`, `/trackers.json`,
-  `/issue_statuses.json`, `/enumerations.json` creates the record and answers 200 (probe 2026-11-03).
-  The same `accept_api_auth?` narrowing would close them; not done, outside the SD-21 task.
-- XML: `group_ids` (custom field, extended user format) and `permissions_tracker_ids` (role) are Arrays
-  given to the builder, so XML shows them as Ruby text (`<group_ids>[1, 2]</group_ids>`); well-formed,
-  not useful. JSON is a proper array. Found in the SD-19 check, not changed.
+- (Fixed 2026-11-03, decision of Jan: the `accept_api_auth` leak on core's write paths of custom fields
+  (SD-21), roles, trackers, issue statuses and enumerations; Arrays written as Ruby text in XML.)
 - `/extended_api/dcf_dependency_editor/values.json` (HTML-only route of redmine_depending_custom_fields)
   now gets the proxy's 404 like the other controllers without API authentication (SD-20).
 - spec files that use Rails classes still depend on load order when run one by one

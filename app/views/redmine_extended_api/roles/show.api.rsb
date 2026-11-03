@@ -23,7 +23,20 @@ api.role do
   api.users_visibility @role.users_visibility if @role.respond_to?(:users_visibility)
   api.all_roles_managed @role.try(:all_roles_managed)
   api.permissions_all_trackers @role.try(:permissions_all_trackers)
-  api.permissions_tracker_ids Array(@role.try(:permissions_tracker_ids)) if @role.respond_to?(:permissions_tracker_ids)
+  if @role.respond_to?(:permissions_tracker_ids)
+    tracker_ids = Array(@role.try(:permissions_tracker_ids))
+    # JSON: [[permission, [tracker ids]], ...]. The XML builder wrote that Array as Ruby text;
+    # in XML each permission is an element with its tracker ids inside.
+    if metadata_inside_root
+      api.array :permissions_tracker_ids do
+        tracker_ids.each do |permission, ids|
+          api.permission(name: permission.to_s) { Array(ids).each { |id| api.tracker_id id } }
+        end
+      end
+    else
+      api.permissions_tracker_ids tracker_ids
+    end
+  end
   api.default_time_entry_activity_id @role.default_time_entry_activity_id if @role.respond_to?(:default_time_entry_activity_id)
 
   if @role.default_time_entry_activity

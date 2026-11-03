@@ -211,5 +211,28 @@ module RedmineExtendedApi
         %w[false 0 off no].include?(value.to_s.strip.downcase)
       end
     end
+
+    # API keys for the write actions only under /extended_api. The controller's class list must
+    # name them, because ProxyApp only forwards actions that take an API key; core's own paths
+    # (/roles.json, not through /extended_api) keep core's API authentication, where an admin
+    # key acted and then answered 200, 302 or 406. Included by the patches of the admin
+    # catalogue controllers, which call ExtendedApiAuth.accept in their prepended hook.
+    module ExtendedApiAuth
+      WRITE_ACTIONS = %i[create update destroy].freeze
+
+      def self.accept(base, *actions)
+        core_actions = base.respond_to?(:accept_api_auth_actions) ? Array(base.accept_api_auth_actions) : []
+        extended_only = WRITE_ACTIONS - core_actions.map(&:to_sym)
+        base.define_singleton_method(:extended_api_only_actions) { extended_only }
+        base.accept_api_auth(*actions)
+      end
+
+      def accept_api_auth?(action = action_name)
+        extended_only = self.class.respond_to?(:extended_api_only_actions) ? self.class.extended_api_only_actions : []
+        return false if !extended_api_request? && extended_only.include?(action.to_sym)
+
+        super
+      end
+    end
   end
 end

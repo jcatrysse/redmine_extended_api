@@ -48,7 +48,11 @@ const inUse = a.expect(await a.call('DELETE', '/extended_api/trackers/1.json'), 
 // 6.1 and 7 name the projects, 5.1 only says why
 a.check(/cannot be deleted/.test(inUse.json?.errors?.[0] || ''), `delete in use: no reason in ${inUse.text}`);
 a.check(!/following projects/.test(inUse.text) || /E2E project/.test(inUse.text), `delete in use: projects not named in ${inUse.text}`);
-await a.show('refused', 'Refusals: blank and duplicate name (422), unknown id (404), non-admins (403), core path without show (404), tracker in use (422 with the core reason; from 6.1 on it names the projects)');
+// core's own paths take no API key for writes, as without this plugin
+a.expect(await a.call('POST', '/trackers.json', { data: { tracker: { name: 'core path', default_status_id: 1 } } }), 403, 'core path create');
+a.expect(await a.call('PUT', `/trackers/${id}.json`, { data: { tracker: { name: 'core path', default_status_id: 1 } } }), 403, 'core path update');
+a.expect(await a.call('DELETE', `/trackers/${id}.json`), 403, 'core path delete');
+await a.show('refused', 'Refusals: blank and duplicate name (422), unknown id (404), non-admins (403), core path without show (404), tracker in use (422 with the core reason; from 6.1 on it names the projects), writes with an API key on the core paths (403)');
 
 a.expect(await a.call('DELETE', `/extended_api/trackers/${id}.json`), 204);
 a.expect(await a.call('GET', `/extended_api/trackers/${id}.json`), 404, 'deleted');

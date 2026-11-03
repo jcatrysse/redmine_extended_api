@@ -8,31 +8,11 @@ module RedmineExtendedApi
   module Patches
     module CustomFieldsControllerPatch
       include ApiHelpers
-
-      WRITE_ACTIONS = %i[create update destroy].freeze
-
-      class << self
-        # The write actions core's own paths take no API key for (core: accept_api_auth :index).
-        attr_accessor :extended_api_only_actions
-      end
+      include ExtendedApiAuth
 
       def self.prepended(base)
-        core_actions = base.respond_to?(:accept_api_auth_actions) ? Array(base.accept_api_auth_actions) : []
-        self.extended_api_only_actions = WRITE_ACTIONS - core_actions.map(&:to_sym)
-        base.accept_api_auth :index, :show, :create, :update, :destroy
+        ExtendedApiAuth.accept(base, :index, :show, :create, :update, :destroy)
         base.helper_method :extended_api_metadata if base.respond_to?(:helper_method)
-      end
-
-      # The class list above must name the write actions, because ProxyApp only forwards actions
-      # that take an API key. Core's own paths (/custom_fields.json, not through /extended_api) keep
-      # core's API authentication: an API key there acted and then answered 302 or 406.
-      def accept_api_auth?(action = action_name)
-        if !extended_api_request? &&
-           Array(CustomFieldsControllerPatch.extended_api_only_actions).include?(action.to_sym)
-          return false
-        end
-
-        super
       end
 
       def show

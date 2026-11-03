@@ -19,10 +19,11 @@ end
 
 metadata = extended_api_metadata
 array_options = nil
+xml = Redmine::Views::Builders::Xml === api
 # XML has one root element: there the metadata are attributes of the array, like core's
 # total_count (left out with nometa). JSON keeps it at the top level, next to the array. ===
 # because the JSON builder is a BasicObject (an is_a? call would become a JSON key).
-if Redmine::Views::Builders::Xml === api
+if xml
   array_options = api_meta(extended_api_mode: metadata[:mode],
                            extended_api_fallback_to_native: metadata[:fallback_to_native])
 else
@@ -61,7 +62,15 @@ api.array :enumerations, array_options do
                 api.custom_field_value do
                   api.id value.custom_field_id if value.respond_to?(:custom_field_id)
                   api.name value.custom_field.name if value.custom_field.respond_to?(:name)
-                  api.value value.value if value.respond_to?(:value)
+                  if value.respond_to?(:value)
+                    # a multiple custom field has an Array, which the XML builder wrote as Ruby
+                    # text; in XML it is <value type="array"><value>..</value></value>, like core
+                    if xml && value.value.is_a?(Array)
+                      api.array(:value) { value.value.each { |v| api.value v } }
+                    else
+                      api.value value.value
+                    end
+                  end
                 end
               end
             end

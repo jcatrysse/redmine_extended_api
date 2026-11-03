@@ -193,4 +193,23 @@ class ExtendedApiCustomFieldsTest < Redmine::ApiTest::Base
     assert_response :success
     assert_equal 'Renamed', field.reload.name
   end
+
+  # group_ids of the extended user format: an Array given to the XML builder was Ruby text.
+  def test_group_ids_in_xml_are_elements_and_json_is_unchanged
+    skip 'needs redmine_depending_custom_fields' unless defined?(RedmineDependingCustomFields::FIELD_FORMAT_EXTENDED_USER)
+
+    field = IssueCustomField.new(name: 'Xml users', field_format: RedmineDependingCustomFields::FIELD_FORMAT_EXTENDED_USER)
+    field.group_ids = %w[10 11]
+    field.save!
+
+    get "/extended_api/custom_fields/#{field.id}.xml", headers: credentials('admin')
+    assert_response :success
+    list = parse_xml(response.body).at_xpath('/custom_field/group_ids')
+    assert_equal 'array', list['type']
+    assert_equal %w[10 11], list.xpath('group_id').map(&:text)
+
+    get "/extended_api/custom_fields/#{field.id}.json", headers: credentials('admin')
+    assert_response :success
+    assert_includes response.body, '"group_ids":[10,11]'
+  end
 end
