@@ -140,6 +140,19 @@ class ExtendedApiCustomFieldsTest < Redmine::ApiTest::Base
     assert_nil field.edit_tag_style.presence
   end
 
+  # custom_field as an Array: Array#to_h raised TypeError, a 500 on create and update
+  def test_custom_field_that_is_no_hash_is_a_validation_error
+    assert_no_difference 'CustomField.count' do
+      post '/extended_api/custom_fields.json', params: {type: 'IssueCustomField', custom_field: %w[a b]},
+                                               headers: credentials('admin')
+    end
+    assert_response 422
+
+    put '/extended_api/custom_fields/1.json', params: {custom_field: %w[a b]}, headers: credentials('admin')
+    assert_response :success
+    assert_equal 'Database', CustomField.find(1).name
+  end
+
   def test_create_with_copy_and_format_from_the_request
     post '/extended_api/custom_fields.json',
          params: {type: 'IssueCustomField', copy: 1, custom_field: {name: 'Copied', field_format: 'list',

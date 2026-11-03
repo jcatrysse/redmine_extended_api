@@ -154,7 +154,9 @@ module RedmineExtendedApi
 
       def raw_custom_field_params
         raw = params[:custom_field]
-        return {} unless raw.respond_to?(:to_h)
+        # an Array (custom_field[]=...) has to_h too, and raised TypeError (500)
+        return {} unless raw.is_a?(Hash) ||
+                         (defined?(ActionController::Parameters) && raw.is_a?(ActionController::Parameters))
 
         hash = if raw.respond_to?(:to_unsafe_h)
                  raw.to_unsafe_h
