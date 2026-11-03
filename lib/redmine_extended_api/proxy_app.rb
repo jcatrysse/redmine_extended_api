@@ -92,7 +92,7 @@ module RedmineExtendedApi
       if controller.respond_to?(:accept_api_auth?)
         controller.accept_api_auth?(action.to_sym)
       elsif controller.respond_to?(:accept_api_auth_actions)
-        controller.accept_api_auth_actions.include?(action.to_sym)
+        Array(controller.accept_api_auth_actions).include?(action.to_sym)
       else
         false
       end

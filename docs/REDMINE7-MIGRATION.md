@@ -58,6 +58,7 @@ has a test that fails without it. Since 2026-10-13 (decision of Jan) every run i
 | `506603c` | `skip_journal` (decision 37 of the Jira migration, E1/E2, 2026-10-15): admin-only top-level flag on `/extended_api`; no journal for the issue update, no "Subtask added", no relation journals on create/destroy, issues saved keep `updated_on`, `PUT /extended_api/journals/:id` keeps `updated_on`/`updated_by_id`. Non-admin 403, notes with the flag 422. Callbacks and an around_action only. 9 tests fail without it (7.0 and 5.1). | decision 37 |
 | `8d6caab` | No core method is overridden any more: `init_journal` and `send_notification` were still prepended (same loop risk next to a later alias_method chain on 5.1/6.1). notify=false now sets `notify = false` in `before_save` (core's `send_notification` checks `notify?`); journal overrides are set on the new journal in `before_validation`. Journal and attachment overrides only on their own record: the journal the request writes on the issue it updates, the attachment the upload creates (closing an issue gave the journals of its closed duplicates the imported user and date). Tests fail without it. Decided overnight, for Jan to confirm. | coordinator, overnight 2026-10-13 |
 | (this commit) | Finding #25094 (2026-10-22): every .xml answer of the plugin's 7 views (custom field, enumeration, enumeration list, issue status, tracker, role, journal of an issue update) had two top-level elements (`<extended_api>` then the record), so XML parsers refused them (0 of 21 parsed). XML now has one root: `<extended_api>` is the first child of the record's element; the enumeration list carries it as attributes of the array (`extended_api_mode`, `extended_api_fallback_to_native`, left out with `nometa`, like core's `total_count`), because Rails' `Hash.from_xml` takes the first non-string child of a `type="array"` element as its items. JSON byte-identical (Jira migration scripts). README: `copy_workflow_from` and a custom field's `type` at the top level. Test fails without it (3 of 4). | review #25094 |
+| (this commit) | SD-18 to SD-21 of redmine_depending_custom_fields (WP-33 integration run, `docs/specs/large_lists_defects.md` on its branch `claude/festive-noether-2y8x7c`; Jan, 2026-11-03). SD-18: `enumerations` taken by every format built on `Redmine::FieldFormat::EnumerationFormat` (the Key/Value list (depending) answered 201/200 with `[]`); AttributePolicy shows `enumerations` by the same test. SD-19: the root-element half was already fixed by `5e3b3d5`; `value_dependencies`/`default_value_dependencies` were a Hash given to the XML builder (attributes, not well-formed for `a]`, `1`, spaces), now one `<value_dependency parent="...">` element with `<value>` children per parent value; JSON untouched. SD-20: `Array(accept_api_auth_actions)` in ProxyApp, settings.json and admin/projects.json answer the proxy's 404 instead of 500. SD-21: an extended create builds the record with only `field_format` (and `copy`), create then assigns the policy-filtered attributes like update (core assigned the whole request first: `possible_values` on a string field, `dependencies_json` of the depending plugin); core's own `POST/PUT/DELETE /custom_fields(/:id).json` no longer take an API key (`accept_api_auth?` narrowed outside /extended_api; the class list keeps the actions because ProxyApp reads it), 403 like core instead of acting and 200/302/406. 7 new integration tests, 6 fail on the old code with redmine_depending_custom_fields installed (the 7th, create with `copy`, guards the new build), 4 of 5 without it (2 skip); proxy spec fails on the old code (NoMethodError). | Jan, 2026-11-03 |
 
 ## Work list for the migration session
 
@@ -104,6 +105,23 @@ Actions the person doing the upgrade must take, or know about, for this plugin:
 - REST API stays required (Administration > Settings > **Integrations** on Redmine 7, the tab was "API").
 
 ## Results
+
+SD-18 to SD-21 (2026-11-03, PostgreSQL 16.15; redmine_depending_custom_fields `redmine70-migration` ba8f07f and WP-33 branch `claude/festive-noether-2y8x7c` ad5cb64):
+
+| run | result |
+|---|---|
+| tests before, 7.0-stable-GEOxyz 578730a (7.0.2) | minitest 72 runs, 442 assertions, 0 failures, 0 errors, 1 skip; rspec 170 examples, 0 failures |
+| tests before, 6.1-stable e79efdc (6.1.6) | minitest 72 runs, 415 assertions, 0 failures, 0 errors, 8 skips; rspec 170 examples, 0 failures |
+| tests before, 5.1-stable 16eb9e6 (5.1.13, Ruby 3.2.6) | minitest 72 runs, 355 assertions, 0 failures, 0 errors, 8 skips; rspec 170 examples, 0 failures |
+| tests after, 7.0 | minitest 79 runs, 479 assertions, 0 failures, 0 errors, 3 skips (2 new: need redmine_depending_custom_fields); rspec 171 examples, 0 failures |
+| tests after, 7.0 with redmine_depending_custom_fields (redmine70-migration) | minitest 79 runs, 496 assertions, 0 failures, 0 errors, 1 skip; rspec 171 examples, 0 failures |
+| tests after, 6.1 | minitest 79 runs, 452 assertions, 0 failures, 0 errors, 10 skips; rspec 171 examples, 0 failures |
+| tests after, 5.1 | minitest 79 runs, 390 assertions, 0 failures, 0 errors, 10 skips; rspec 171 examples, 0 failures |
+| new tests on the old code, 7.0 | without the depending plugin 7 runs, 4 failures, 2 skips; with it 7 runs, 5 failures, 1 error (Nokogiri: `Specification mandates value for attribute a`), 0 skips; proxy spec: NoMethodError |
+| redmine_depending_custom_fields (redmine70-migration) request specs with this plugin, 7.0 | 71 examples, 0 failures (a first run on a database the minitest run had filled: 1 failure, the empty-state page; clean database: 0) |
+| redmine_depending_custom_fields (WP-33 branch) request specs with this plugin, 7.0 | old code 853 examples, 3 failures, among them `admin_custom_field_dependencies_spec.rb:583` 'does not accept an administrator API key on the update (core accept_api_auth :index only)'; new code 853 examples, 2 failures, :583 passes. The 2 left (query counts, `dcf_project_custom_field_configuration_spec.rb:2248` and `:3687`, 18 vs 17 and 15 vs 14 statements) fail the same without this plugin installed: not caused here. |
+| HTTP probes, 7.0 production mode, with the depending plugin, old then new code on the same database | SD-18 POST depending_enumeration with enumerations: 201 `[]` -> 201 `["Alpha","Beta"]`; PUT `[Gamma]`: 200 `[]` -> 200 `["Alpha","Beta","Gamma"]`; control `enumeration` 201 both. SD-19 XML of every custom field through Python ElementTree: 1 of 2 not well-formed (`invalid token`, the depending field) -> 6 of 6 parsed, the parsed mapping equals the JSON one; JSON of all 6 fields byte-identical before and after. SD-20 settings.json, admin/projects.json, dcf_config_audit.json: 500 -> 404 "Not a REST API endpoint"; depending_custom_fields.json 200 both. SD-21 (1) string field with `possible_values` on create: stored `["Leaked"]` -> `[]`; WP-33 branch, depending_list with `dependencies_json` on create: 201 `{"Belgium":["Antwerp"]}` (update drops it, 200) -> 201 `{}` and 200 `{}`. SD-21 (2) admin key on core paths: POST /custom_fields.json 200 and created, PUT 406 and saved, DELETE 302 and deleted -> 403, 403, 403, nothing changed; GET /custom_fields.json 200 both; reporter on /extended_api PUT 403 both. No API key recorded. |
+| e2e 7.0, production mode | smoke + core + 15 scenarios, 0 problems; custom_fields.mjs checks the core-path writes (403, unchanged), proxy.mjs the SD-20 paths; their two screenshots (custom-fields-refused, proxy-not-api) recommitted and looked at |
 
 XML answers (finding #25094, 2026-10-22, PostgreSQL 16.15):
 
@@ -288,7 +306,15 @@ unchanged by this work, so recorded, not fixed):
 - `GET /extended_api/<unknown id>.json` answers 404 without a body, like core.
 - The plugin registers `accept_api_auth` for create/update/destroy on the core admin controllers, so an
   admin API key can also reach core's HTML-oriented create/update on the core paths (they redirect).
-  Admin only; pre-existing; left as is.
+  Admin only; pre-existing. Fixed for custom fields (SD-21, 2026-11-03); still open for roles, trackers,
+  issue statuses and enumerations: on 7.0 an admin key on `POST /roles.json`, `/trackers.json`,
+  `/issue_statuses.json`, `/enumerations.json` creates the record and answers 200 (probe 2026-11-03).
+  The same `accept_api_auth?` narrowing would close them; not done, outside the SD-21 task.
+- XML: `group_ids` (custom field, extended user format) and `permissions_tracker_ids` (role) are Arrays
+  given to the builder, so XML shows them as Ruby text (`<group_ids>[1, 2]</group_ids>`); well-formed,
+  not useful. JSON is a proper array. Found in the SD-19 check, not changed.
+- `/extended_api/dcf_dependency_editor/values.json` (HTML-only route of redmine_depending_custom_fields)
+  now gets the proxy's 404 like the other controllers without API authentication (SD-20).
 - spec files that use Rails classes still depend on load order when run one by one
   (e.g. controller_patches_spec alone); the full suite is green.
 

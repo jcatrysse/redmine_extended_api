@@ -1,6 +1,6 @@
 # custom-fields
 
-Run 2026-10-13T14:28:32.074Z against http://127.0.0.1:3070.
+Run 2026-11-03T07:23:57.591Z against http://127.0.0.1:3000.
 
 | screenshot | user | URL | shows |
 |---|---|---|---|
@@ -9,5 +9,5 @@ Run 2026-10-13T14:28:32.074Z against http://127.0.0.1:3070.
 | ![](custom-fields-admin-list.png) | admin | `/custom_fields?tab=IssueCustomField` | Administration > Custom fields lists both fields made through the API |
 | ![](custom-fields-admin-edit.png) | admin | `/custom_fields/2/edit` | The enumeration field in the admin form: the options and the default set through the API |
 | ![](custom-fields-issue-form.png) | manager | `/projects/e2e-project/issues/new?issue[tracker_id]=1` | Both fields are on the new issue form of e2e-project for a member (Bug tracker) |
-| ![](custom-fields-refused.png) | manager | `/projects/e2e-project/issues/new?issue[tracker_id]=1` | Refusals: blank name (422), no type (422 Type is invalid, no HTML page), non-admins (403), unknown id (404), core path without show (404) |
+| ![](custom-fields-refused.png) | manager | `/projects/e2e-project/issues/new?issue[tracker_id]=1` | Refusals: blank name (422), no type (422 Type is invalid, no HTML page), non-admins (403), unknown id (404), core path without show (404), writes with an API key on the core paths /custom_fields (403, nothing changed) |
 | ![](custom-fields-delete.png) | manager | `/projects/e2e-project/issues/new?issue[tracker_id]=1` | Both fields are deleted (204) and gone (404) |

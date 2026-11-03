@@ -9,9 +9,30 @@ module RedmineExtendedApi
     module CustomFieldsControllerPatch
       include ApiHelpers
 
+      WRITE_ACTIONS = %i[create update destroy].freeze
+
+      class << self
+        # The write actions core's own paths take no API key for (core: accept_api_auth :index).
+        attr_accessor :extended_api_only_actions
+      end
+
       def self.prepended(base)
+        core_actions = base.respond_to?(:accept_api_auth_actions) ? Array(base.accept_api_auth_actions) : []
+        self.extended_api_only_actions = WRITE_ACTIONS - core_actions.map(&:to_sym)
         base.accept_api_auth :index, :show, :create, :update, :destroy
         base.helper_method :extended_api_metadata if base.respond_to?(:helper_method)
+      end
+
+      # The class list above must name the write actions, because ProxyApp only forwards actions
+      # that take an API key. Core's own paths (/custom_fields.json, not through /extended_api) keep
+      # core's API authentication: an API key there acted and then answered 302 or 406.
+      def accept_api_auth?(action = action_name)
+        if !extended_api_request? &&
+           Array(CustomFieldsControllerPatch.extended_api_only_actions).include?(action.to_sym)
+          return false
+        end
+
+        super
       end
 
       def show
@@ -104,14 +125,24 @@ module RedmineExtendedApi
 
       # Core's before_action renders the HTML "select the type" page when params[:type] is
       # missing or unknown, which answered an API create with 200 and HTML.
+      # Core also assigns every safe attribute of params[:custom_field] here, before create
+      # filters them through the AttributePolicy; an extended create sets only the format the
+      # policy depends on, and create assigns the filtered attributes.
       def build_new_custom_field
-        if extended_api_request? && CustomField.new_subclass_instance(params[:type]).nil?
+        return super unless extended_api_request?
+
+        @custom_field = CustomField.new_subclass_instance(params[:type])
+        if @custom_field.nil?
           return render_api_error_message(
             "#{I18n.t(:field_type)} #{I18n.t('activerecord.errors.messages.invalid')}"
           )
         end
 
-        super
+        if params[:copy].present? && (@copy_from = CustomField.find_by(id: params[:copy]))
+          @custom_field.copy_from(@copy_from)
+        end
+        field_format = raw_custom_field_params['field_format']
+        @custom_field.field_format = field_format.to_s unless field_format.nil?
       end
 
       def assign_filtered_attributes(custom_field)
@@ -121,7 +152,7 @@ module RedmineExtendedApi
         custom_field.safe_attributes = attributes
       end
 
-      def filtered_custom_field_params(custom_field)
+      def raw_custom_field_params
         raw = params[:custom_field]
         return {} unless raw.respond_to?(:to_h)
 
@@ -131,7 +162,12 @@ module RedmineExtendedApi
                  raw.to_h
                end
 
-        return {} unless hash.is_a?(Hash)
+        hash.is_a?(Hash) ? hash.stringify_keys : {}
+      end
+
+      def filtered_custom_field_params(custom_field)
+        hash = raw_custom_field_params
+        return {} if hash.empty?
 
         allowed = attribute_policy_for(custom_field).assignable_attributes
         return {} if allowed.empty?
@@ -158,7 +194,7 @@ module RedmineExtendedApi
         return [] unless hash.is_a?(Hash)
 
         field_format = hash['field_format'] || hash[:field_format] || custom_field.field_format
-        return [] unless field_format.to_s == 'enumeration'
+        return [] unless RedmineExtendedApi::CustomFields::AttributePolicy.enumeration_format?(field_format)
 
         enum_input = hash['enumerations'] || hash[:enumerations]
         return [] if enum_input.blank?

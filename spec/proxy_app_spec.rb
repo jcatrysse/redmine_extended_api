@@ -283,6 +283,32 @@ RSpec.describe RedmineExtendedApi::ProxyApp do
       end
     end
 
+    # SD-20: the class attribute is nil when the controller never called accept_api_auth
+    # (SettingsController, AdminController); the proxy raised NoMethodError, answered 500.
+    context 'when the target controller never called accept_api_auth' do
+      let(:route_params) { { controller: 'settings', action: 'index', format: 'json' } }
+
+      before do
+        stub_const('SettingsController', Class.new do
+          def self.accept_api_auth_actions
+            nil
+          end
+        end)
+
+        allow(routes).to receive(:recognize_path).with('/issues.json', method: 'GET').and_return(route_params)
+      end
+
+      it 'returns 404 without proxying' do
+        expect(rails_app).not_to receive(:call)
+
+        status, headers, body = proxy_app.call(env)
+
+        expect(status).to eq(404)
+        expect(headers['Content-Type']).to eq('application/json; charset=utf-8')
+        expect(JSON.parse(body.first)).to eq('error' => 'Not a REST API endpoint')
+      end
+    end
+
     context 'when the request omits an API format' do
       let(:env) { { 'PATH_INFO' => '/extended_api/issues' } }
       let(:rewritten_env) { { 'PATH_INFO' => '/issues' } }

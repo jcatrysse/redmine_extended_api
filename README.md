@@ -27,6 +27,12 @@ In XML, which has one root element, the same block is the first element inside t
 (`<tracker><extended_api><mode>extended</mode><fallback_to_native>false</fallback_to_native></extended_api><id>...`);
 the enumeration list carries it as attributes of the array, like core's `total_count`
 (`<enumerations extended_api_mode="extended" extended_api_fallback_to_native="false" type="array">`, left out with `nometa=1`).
+The dependency mappings of a depending custom field (`value_dependencies`, `default_value_dependencies`)
+are JSON objects keyed by the parent value. In XML each parent value is an element with the child values
+inside, because a parent value is often no valid XML name:
+`<value_dependencies type="array"><value_dependency parent="Belgium"><value>12</value><value>14</value></value_dependency></value_dependencies>`
+(and `<default_value_dependencies type="array"><default_value_dependency parent="Belgium"><value>12</value></default_value_dependency>...`;
+a single default and a list of one both read as one `<value>`). Until 2026-11 they were attributes of one element.
 
 ## Installation
 
@@ -294,9 +300,12 @@ All paths require either `.json` or `.xml` and the usual authentication headers.
 |---------------------|-----------|--------------------------------------------|---------------------|---------------------------------------------------------------------------------|
 | List custom fields  | GET       | `/extended_api/custom_fields.{format}`     | Core (proxy)        | Returns every custom field with permitted attributes.                           |
 | Show custom field   | GET       | `/extended_api/custom_fields/:id.{format}` | Extended only (new) | Includes field format, visibility, possible values, trackers, etc.              |
-| Create custom field | POST      | `/extended_api/custom_fields.{format}`     | Extended only (new) | Provide the type (e.g. `IssueCustomField`) at the top level, next to `custom_field`, and the attributes under `custom_field`. A `type` inside `custom_field` is not read: without a valid top-level type the answer is `422`. |
+| Create custom field | POST      | `/extended_api/custom_fields.{format}`     | Extended only (new) | Provide the type (e.g. `IssueCustomField`) at the top level, next to `custom_field`, and the attributes under `custom_field`. A `type` inside `custom_field` is not read: without a valid top-level type the answer is `422`. Only the attributes the field's type and format support are applied, the same set as on update; others are ignored. |
 | Update custom field | PUT/PATCH | `/extended_api/custom_fields/:id.{format}` | Extended only (new) | Supports mass updates of trackers, roles, visibility, and plugin attributes.    |
 | Delete custom field | DELETE    | `/extended_api/custom_fields/:id.{format}` | Extended only (new) | Removes the field; follows the same validations as the UI.                      |
+
+The write endpoints take an API key under `/extended_api` only. Core's own paths (`POST /custom_fields.json`,
+`PUT`/`DELETE /custom_fields/:id.json`) behave as without this plugin: an API key is not accepted there (`403`).
 
 ### Enumerations
 
@@ -392,7 +401,7 @@ curl -X PATCH \
 
 ### Custom fields
 
-List-based custom fields (`field_format: "list"`) still use the legacy `possible_values` array of strings. Enumeration-based custom fields (`field_format: "enumeration"`) are backed by API-managed `enumerations` objects instead. Each entry can set `name`, `active`, and `position`; include the `id` when updating to preserve identities, and pass the enumeration id as the `default_value` when you want the field to preselect one of the options.
+List-based custom fields (`field_format: "list"`) still use the legacy `possible_values` array of strings. Enumeration-based custom fields (`field_format: "enumeration"`, and formats built on it such as `depending_enumeration`, the Key/Value list (depending) of redmine_depending_custom_fields) are backed by API-managed `enumerations` objects instead. Each entry can set `name`, `active`, and `position`; include the `id` when updating to preserve identities, and pass the enumeration id as the `default_value` when you want the field to preselect one of the options.
 
 ```bash
 # Create a project custom field with explicit possible values

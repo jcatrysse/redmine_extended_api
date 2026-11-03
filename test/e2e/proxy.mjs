@@ -36,7 +36,12 @@ const html = a.expect(await a.call('GET', '/extended_api/my/page'), 404, 'HTML r
 a.check(html.json && html.json.error === 'Not a REST API endpoint', `proxy: /my/page answer is ${html.text.slice(0, 100)}`);
 a.expect(await a.call('GET', '/extended_api/projects/e2e-project'), 404, 'no format');
 a.expect(await a.call('GET', '/extended_api/no/such/route.json'), 404, 'unknown route');
-await a.show('not-api', 'HTML routes, a path without .json/.xml and unknown routes are refused under /extended_api with a JSON 404');
+// controllers that never called accept_api_auth answered 500 (SD-20)
+for (const path of ['/extended_api/settings.json', '/extended_api/admin/projects.json']) {
+  const r = a.expect(await a.call('GET', path), 404, 'controller without API authentication');
+  a.check(r.json && r.json.error === 'Not a REST API endpoint', `proxy: ${path} answer is ${r.text.slice(0, 100)}`);
+}
+await a.show('not-api', 'HTML routes, a path without .json/.xml, unknown routes and controllers without API authentication (settings.json, admin/projects.json) are refused under /extended_api with a JSON 404');
 
 // the REST API setting is respected
 await setApiSettings(t, { rest: false });

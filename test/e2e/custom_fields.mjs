@@ -51,7 +51,15 @@ a.expect(await a.call('POST', '/extended_api/custom_fields.json', { as: 'manager
 a.expect(await a.call('GET', `/extended_api/custom_fields/${listId}.json`, { as: 'reporter' }), 403, 'not admin');
 a.expect(await a.call('GET', '/extended_api/custom_fields/999999.json'), 404, 'unknown id');
 a.expect(await a.call('GET', `/custom_fields/${listId}.json`), 404, 'show is extended only');
-await a.show('refused', 'Refusals: blank name (422), no type (422 Type is invalid, no HTML page), non-admins (403), unknown id (404), core path without show (404)');
+// core's own paths take an API key for index only, as without this plugin (SD-21)
+a.expect(await a.call('POST', '/custom_fields.json', { data: { type: 'IssueCustomField', custom_field: { name: `E2E core path ${stamp}`, field_format: 'string' } } }), 403, 'core path create');
+a.expect(await a.call('PUT', `/custom_fields/${listId}.json`, { data: { custom_field: { name: `E2E core path ${stamp}` } } }), 403, 'core path update');
+a.expect(await a.call('DELETE', `/custom_fields/${listId}.json`), 403, 'core path delete');
+const unchanged = a.expect(await a.call('GET', `/extended_api/custom_fields/${listId}.json`), 200, 'after the core path writes');
+a.check(unchanged.json?.custom_field?.name === `E2E region ${stamp}`, `core path write changed the field: ${unchanged.text.slice(0, 100)}`);
+const coreIndex = a.expect(await a.call('GET', '/custom_fields.json'), 200, 'core index');
+a.check(!/E2E core path/.test(coreIndex.text), 'core path create made a field');
+await a.show('refused', 'Refusals: blank name (422), no type (422 Type is invalid, no HTML page), non-admins (403), unknown id (404), core path without show (404), writes with an API key on the core paths /custom_fields (403, nothing changed)');
 
 a.expect(await a.call('DELETE', `/extended_api/custom_fields/${listId}.json`), 204);
 a.expect(await a.call('DELETE', `/extended_api/custom_fields/${enumId}.json`), 204);

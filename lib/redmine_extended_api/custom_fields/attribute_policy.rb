@@ -76,6 +76,17 @@ module RedmineExtendedApi
                        ActiveModel::Type::Boolean.new
                      end
 
+      # Every format whose entries are records (core's Key/Value list and formats built on it,
+      # such as the Key/Value list (depending) of redmine_depending_custom_fields) takes
+      # enumerations.
+      def self.enumeration_format?(field_format)
+        enumeration_format_object?(Redmine::FieldFormat.find(field_format.to_s)) if defined?(Redmine::FieldFormat)
+      end
+
+      def self.enumeration_format_object?(format)
+        defined?(Redmine::FieldFormat::EnumerationFormat) ? format.is_a?(Redmine::FieldFormat::EnumerationFormat) : false
+      end
+
       def initialize(custom_field)
         @custom_field = custom_field
         @format = custom_field.format
@@ -100,6 +111,10 @@ module RedmineExtendedApi
         end
       end
 
+      def enumerations_supported?
+        self.class.enumeration_format_object?(format)
+      end
+
       def boolean_value(attribute, value)
         return value unless BOOLEAN_ATTRIBUTES.include?(attribute.to_sym)
 
@@ -119,6 +134,7 @@ module RedmineExtendedApi
           attrs = Set.new(BASE_DISPLAY_ATTRIBUTES)
           attrs << :customized_type if customized_type_available?
           attrs.merge(format_display_attributes)
+          attrs << :enumerations if enumerations_supported?
           attrs.merge(type_display_attributes)
           attrs << :multiple if format_supports_multiple?
           attrs << :is_filter if filter_supported?

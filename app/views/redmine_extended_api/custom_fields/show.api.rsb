@@ -167,14 +167,31 @@ api.custom_field do
     api.parent_custom_field_id @custom_field.try(:parent_custom_field_id)
   end
 
+  # A mapping (parent value => child values) is a JSON object. The XML builder wrote a Hash as
+  # attributes, and a parent value is often no XML name ("a]", "1", spaces); in XML each entry
+  # is an element: <value_dependency parent="Belgium"><value>Antwerp</value></value_dependency>.
+  mapping = proc do |name, entry, hash|
+    if metadata_inside_root
+      api.array name do
+        hash.each do |parent, values|
+          api.__send__(entry, parent: parent.to_s) do
+            Array(values).each { |value| api.value value.to_s }
+          end
+        end
+      end
+    else
+      api.__send__(name, hash)
+    end
+  end
+
   if policy.display_attribute?(:value_dependencies)
     dependencies = @custom_field.try(:value_dependencies) || {}
-    api.value_dependencies dependencies
+    mapping.call(:value_dependencies, :value_dependency, dependencies)
   end
 
   if policy.display_attribute?(:default_value_dependencies)
     defaults = @custom_field.try(:default_value_dependencies) || {}
-    api.default_value_dependencies defaults
+    mapping.call(:default_value_dependencies, :default_value_dependency, defaults)
   end
 
   if policy.display_attribute?(:hide_when_disabled)
